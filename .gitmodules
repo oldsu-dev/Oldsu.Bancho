@@ -1,0 +1,3 @@
+[submodule "oldsu"]
+	path = oldsu
+	url = https://gitlab.ayyeve.xyz/oldsu/oldsu
