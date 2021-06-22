@@ -1,10 +1,6 @@
 ﻿using System;
-using System.IO;
-using System.Net.WebSockets;
-using System.Text;
 using System.Threading.Tasks;
 using Fleck;
-using WebSocketException = Fleck.WebSocketException;
 
 namespace Oldsu.Bancho
 {
