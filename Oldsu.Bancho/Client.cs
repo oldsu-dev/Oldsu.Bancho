@@ -1,11 +1,9 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Collections.Specialized;
-using System.Linq;
 using System.Net.Http;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using Fleck;
-using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Oldsu.Types;
 using osuserver2012.Enums;
@@ -40,7 +38,22 @@ namespace Oldsu.Bancho
         /// <param name="authenticationString"> Authentication string that osu! sends on login. </param>
         public async Task HandleLoginAsync(string authenticationString)
         {
-            var (loginStatus, user) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
+            var (loginStatus, User) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
+
+            switch (loginStatus)
+            {
+                case LoginResult.AuthenticationSuccessful:
+                    var db = new Database();
+
+                    Stats = await db.Stats.FindAsync(User.UserID);
+
+                    break;
+                
+                default:
+                    _webSocketConnection.Send("loginresult");
+                    
+                    break;
+            }
         }
 
         /// <summary>
