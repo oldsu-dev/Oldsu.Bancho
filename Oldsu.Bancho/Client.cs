@@ -58,15 +58,15 @@ namespace Oldsu.Bancho
             
             await using var db = new Database();
 
-            var user = await db.Users.Where(user => user.Username == loginUsername).FirstAsync();
+            var user = await db.Authenticate(loginUsername, loginPassword);
 
+            if (user == null)
+                return (LoginResult.AuthenticationFailed, null);
+            
             if (user.Banned == true)
                 return (LoginResult.Banned, null);
 
-            if (user.Password != loginPassword) 
-                return (LoginResult.AuthenticationFailed, null);
-            
-            // Password is correct, user is not banned, client is not too old. Everything is fine.
+            // user is found, user is not banned, client is not too old. Everything is fine.
             return (LoginResult.AuthenticationSuccessful, user);
         }
 
