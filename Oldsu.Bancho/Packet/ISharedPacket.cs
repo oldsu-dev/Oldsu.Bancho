@@ -2,8 +2,5 @@
 
 namespace Oldsu.Bancho.Packet
 {
-    public interface ISharedPacket
-    {
-        Task Handle();
-    }
+    public interface ISharedPacket { }
 }
