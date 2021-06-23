@@ -18,7 +18,8 @@ namespace Oldsu.Bancho
         }
 
         /// <summary>
-        ///     Starts a websocket server and listening to incoming requests
+        ///     Starts a websocket server and listening to incoming traffic.
+        ///     Also calls HandleLoginAsync on client login.
         /// </summary>
         public async Task Start()
         {
