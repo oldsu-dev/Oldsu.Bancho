@@ -5,6 +5,9 @@ using System.Net.Sockets;
 using System.Threading.Tasks;
 using Fleck;
 using Newtonsoft.Json;
+using Oldsu.Bancho.Packet;
+using Oldsu.Bancho.Packet.Shared;
+using Oldsu.Enums;
 using Oldsu.Types;
 using osuserver2012.Enums;
 
@@ -27,11 +30,31 @@ namespace Oldsu.Bancho
         public Stats Stats;
         public Presence Presence;
 
+        public Version Version;
+
         public Client(IWebSocketConnection webSocketConnection)
         {
             _webSocketConnection = webSocketConnection;
         }
 
+        /// <summary>
+        ///     Sends packet to client.
+        /// </summary>
+        /// <param name="sharedPacket"> Packet meant to be sent. </param>
+        private async Task SendPacket(ISharedPacket sharedPacket) {
+            dynamic packet = null;  
+
+            switch (this.Version) {
+                case Version.B394A:
+                    packet = ((Into<IB394APacketOut>)sharedPacket).Into();
+                    break;
+            } 
+
+            byte[] data = BanchoSerializer.Serialize(packet);
+
+            await _webSocketConnection.Send(data);
+        }
+        
         /// <summary>
         ///     Handles incoming login requests accordingly.
         /// </summary>
@@ -39,6 +62,8 @@ namespace Oldsu.Bancho
         public async Task HandleLoginAsync(string authenticationString)
         {
             var (loginStatus, User) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
+
+            Version = Version.B394A;
 
             switch (loginStatus)
             {
@@ -50,7 +75,7 @@ namespace Oldsu.Bancho
                     break;
                 
                 default:
-                    _webSocketConnection.Send("loginresult");
+                    SendPacket(new Login((int)loginStatus, (byte)User.Privileges));
                     
                     break;
             }
