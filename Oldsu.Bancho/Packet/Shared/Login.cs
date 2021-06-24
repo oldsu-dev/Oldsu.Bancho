@@ -2,8 +2,8 @@
 {
     public struct Login : ISharedPacket, Into<IB394APacketOut>
     {
-        public int LoginStatus { get; set; }
-        public byte Privilege { get; set; }
+        public int LoginStatus { get; init; }
+        public byte Privilege { get; init; }
 
         public IB394APacketOut Into()
         {
