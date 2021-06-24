@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 
 namespace Oldsu.Bancho
@@ -318,20 +320,30 @@ namespace Oldsu.Bancho
         
         #endregion
 
-        private static Type GetMemberType(MemberInfo info) => info.MemberType switch
+        private static Type GetMemberType(MemberInfo info)
         {
-            MemberTypes.Field => ((FieldInfo)info).FieldType,
-            MemberTypes.Property => ((PropertyInfo)info).PropertyType,
+            var type = info.MemberType switch
+            {
+                MemberTypes.Field => ((FieldInfo)info).FieldType,
+                MemberTypes.Property => ((PropertyInfo)info).PropertyType,
 
-            _ => throw new Exception()
-        };
-        
-        private static readonly Dictionary<Type, ImmutableArray<TypeMember>> _typeCache = new();
+                _ => throw new Exception()
+            };
 
+            if (type.IsEnum)
+                type = type.GetEnumUnderlyingType();
+
+            return type;
+        }
+
+        private static readonly ConcurrentDictionary<Type, ImmutableArray<TypeMember>> _typeCache = new();
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static IEnumerable<MemberInfo> GetAllMemberInfo(Type type) =>
             type.GetMembers().Concat(type.GetProperties());
 
-        private static ImmutableArray<TypeMember> GetTypeMembers(Type type, bool cache = true)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ImmutableArray<TypeMember> GetTypeMembers(Type type)
         {
             var members = (from memberInfo in GetAllMemberInfo(type)
                 where memberInfo.GetCustomAttribute<BanchoSerializableAttribute>() != null
@@ -353,20 +365,16 @@ namespace Oldsu.Bancho
                     _ => new ObjectMember(memberInfo)
                 })).ToImmutableArray();
             
-            if (cache)
-                _typeCache.Add(type, members);
-
             return members;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static ImmutableArray<TypeMember> GetOrAddCachedMembers(Type type)
         {
-            lock (_typeCache)
-            {
-                return _typeCache.TryGetValue(type, out var m) ? m : GetTypeMembers(type);
-            }
+            return _typeCache.GetOrAdd(type, GetTypeMembers);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void Write(object instance, BinaryWriter bw)
         {
             if (instance == null)
@@ -379,6 +387,7 @@ namespace Oldsu.Bancho
                 member.WriteToStream(instance, bw);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static object Read(BinaryReader br, Type type)
         {
             var members = GetOrAddCachedMembers(type);
@@ -389,13 +398,14 @@ namespace Oldsu.Bancho
 
             return instance;
         }
+       
 
-        public static T Deserialize<T>(ReadOnlySpan<byte> data) where T: new()
+        public static T Deserialize<T>(byte[] data) where T: new()
         {
             if (data == null)
                 return default;
 
-            using var ms = new MemoryStream(data.ToArray());
+            using var ms = new MemoryStream(data);
             using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
             
             return (T)Read(br, typeof(T));
@@ -405,7 +415,7 @@ namespace Oldsu.Bancho
         {
             if (instance == null)
                 return null;
-
+            
             using var ms = new MemoryStream();
             using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
                 Write(instance, bw);
