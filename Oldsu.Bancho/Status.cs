@@ -6,7 +6,7 @@
         public byte Gamemode { get; set; }
         public ushort Mods { get; set; }
         public string Map { get; set; }
-        public string MapMD5 { get; set; }
+        public string MapSha256 { get; set; }
         public int MapID { get; set; }
         
         public Status()
@@ -15,7 +15,7 @@
             Gamemode = 0;
             Mods = 0;
             Map = "";
-            MapMD5 = "";
+            MapSha256 = "";
             MapID = 0;
         }
     }
