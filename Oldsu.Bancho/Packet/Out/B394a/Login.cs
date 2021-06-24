@@ -2,7 +2,7 @@
 
 namespace Oldsu.Bancho.Packet.Out.B394a
 {
-    [BanchoPacket(5, Version.B394A)]
+    [BanchoPacket(5, Version.B394A, BanchoPacketType.Out)]
     public class Login : IB394APacketOut
     {
         [BanchoSerializable] public int LoginStatus;
