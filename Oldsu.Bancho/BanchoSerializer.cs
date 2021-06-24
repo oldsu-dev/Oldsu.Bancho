@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Oldsu.Bancho
 {
-    public class BanchoSerializableAttribute : System.Attribute { }  
+    public class BanchoSerializableAttribute : System.Attribute { } 
     
     public static class BanchoSerializer
     {
@@ -301,7 +301,7 @@ namespace Oldsu.Bancho
             private Type _type;
             
             public override void ReadFromStream(object instance, BinaryReader br) =>
-                Read(br, _type);
+                SetValueToObject(instance, Read(br, _type));
             
             public override void WriteToStream(object instance, BinaryWriter bw) =>
                 BanchoSerializer.Write(GetValueFromObject(instance), bw);
@@ -401,7 +401,7 @@ namespace Oldsu.Bancho
             return (T)Read(br, typeof(T));
         }
 
-        public static Span<byte> Serialize(object instance)
+        public static byte[] Serialize(object instance)
         {
             if (instance == null)
                 return null;
@@ -410,7 +410,7 @@ namespace Oldsu.Bancho
             using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
                 Write(instance, bw);
 
-            return new Span<byte>(ms.GetBuffer(), 0, (int)ms.Length);
+            return ms.ToArray();
         }
     }
 }
