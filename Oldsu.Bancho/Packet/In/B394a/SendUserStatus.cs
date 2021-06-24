@@ -5,9 +5,9 @@ namespace Oldsu.Bancho.Packet.In.B394a
 {
     public struct SendUserStatus : Into<ISharedPacket>
     {
-        public byte Status;
-        public bool IsBeatmapUpdate;
-        public BeatmapUpdate BeatmapUpdate;
+        [BanchoSerializable] public byte Status;
+        [BanchoSerializable] public bool IsBeatmapUpdate;
+        [BanchoSerializable] public BeatmapUpdate BeatmapUpdate;
 
         ISharedPacket Into<ISharedPacket>.Into()
         {
