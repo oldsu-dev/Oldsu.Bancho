@@ -42,18 +42,8 @@ namespace Oldsu.Bancho
         ///     Sends packet to client.
         /// </summary>
         /// <param name="sharedPacket"> Packet meant to be sent. </param>
-        private async Task SendPacket(ISharedPacket sharedPacket) {
-            object packet = null;  
-
-            switch (this.Version) {
-                case Version.B394A:
-                    packet = ((Into<IB394APacketOut>)sharedPacket).Into();
-                    break;
-            } 
-
-            byte[] data = BanchoSerializer.Serialize(packet);
-
-            await _webSocketConnection.Send(data);
+        private async Task SendPacket(BanchoPacket packet) {
+            
         }
         
         /// <summary>
@@ -73,13 +63,17 @@ namespace Oldsu.Bancho
                     var db = new Database();
 
                     Stats = await db.Stats.FindAsync(User.UserID);
-                    
-                    await SendPacket(new Login { LoginStatus = (int)loginStatus, Privilege = (byte)User.Privileges });
 
+                    await SendPacket(new BanchoPacket(
+                        new Login { LoginStatus = (int)loginStatus, Privilege = (byte)User.Privileges })
+                    );
+                    
                     break;
                 
                 default:
-                    await SendPacket(new Login { LoginStatus = (int)loginStatus, Privilege = 0 });
+                    await SendPacket(new BanchoPacket(
+                        new Login { LoginStatus = (int)loginStatus, Privilege = 0 })
+                    );
                     
                     break;
             }
