@@ -9,8 +9,18 @@ using System.Text;
 
 namespace Oldsu.Bancho
 {
-    public class BanchoSerializableAttribute : System.Attribute { } 
-    
+    public class BanchoSerializableAttribute : System.Attribute { }
+
+    public class BanchoPacketAttribute : System.Attribute
+    {
+        public ushort Id { get; }
+
+        public BanchoPacketAttribute(ushort id)
+        {
+            Id = id;
+        }
+    }
+
     public static class BanchoSerializer
     {
         #region TypeMember's
@@ -366,6 +376,20 @@ namespace Oldsu.Bancho
                 return _typeCache.TryGetValue(type, out var m) ? m : GetTypeMembers(type);
             }
         }
+        
+        private static void WritePacketHeader(object instance, BinaryWriter bw)
+        {
+            var type = instance.GetType();
+            var banchoPacketAttribute =
+                (BanchoPacketAttribute)Attribute.GetCustomAttribute(type, typeof(BanchoPacketAttribute));
+            var packetLength = bw.BaseStream.Length;
+
+            bw.BaseStream.Seek(0, SeekOrigin.Begin);
+            
+            bw.Write(banchoPacketAttribute.Id);
+            bw.Write(false);
+            bw.Write((int)packetLength);
+        }
 
         private static void Write(object instance, BinaryWriter bw)
         {
@@ -407,8 +431,12 @@ namespace Oldsu.Bancho
                 return null;
 
             using var ms = new MemoryStream();
-            using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
-                Write(instance, bw);
+            using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+
+            bw.BaseStream.Seek(7, SeekOrigin.Begin);
+            
+            Write(instance, bw);
+            WritePacketHeader(instance, bw);
 
             return ms.ToArray();
         }
