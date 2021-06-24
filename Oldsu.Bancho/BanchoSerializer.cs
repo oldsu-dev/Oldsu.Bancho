@@ -9,7 +9,7 @@ using System.Text;
 
 namespace Oldsu.Bancho
 {
-    public class BanchoSerializableAttribute : System.Attribute { }  
+    public class BanchoSerializableAttribute : System.Attribute { } 
     
     public static class BanchoSerializer
     {
@@ -299,22 +299,20 @@ namespace Oldsu.Bancho
         private class ObjectMember : TypeMember
         {
             private Type _type;
-            
-            public override void ReadFromStream(object instance, BinaryReader br) =>
-                Read(br, _type);
-            
-            public override void WriteToStream(object instance, BinaryWriter bw) =>
+
+            public override void ReadFromStream(object instance, BinaryReader br)
+            {
+                SetValueToObject(instance, Read(br, _type));
+            }
+
+            public override void WriteToStream(object instance, BinaryWriter bw)
+            {
                 BanchoSerializer.Write(GetValueFromObject(instance), bw);
+            }
 
             public ObjectMember(MemberInfo info) : base(info)
             {
-                _type = info.MemberType switch
-                {
-                    MemberTypes.Field => ((FieldInfo)info).FieldType,
-                    MemberTypes.Property => ((PropertyInfo)info).PropertyType,
-
-                    _ => throw new Exception()
-                };
+                _type = GetMemberType(info);
             }
         }
         
@@ -361,27 +359,29 @@ namespace Oldsu.Bancho
             return members;
         }
 
-        private static void Write(object instance, BinaryWriter bw)
+        private static ImmutableArray<TypeMember> GetOrAddCachedMembers(Type type)
         {
             lock (_typeCache)
             {
-                if (instance == null)
-                    return;
-
-                var type = instance.GetType();
-                var members =
-                    _typeCache.TryGetValue(type, out var m) ? m : GetTypeMembers(type);
-
-                foreach (var member in members)
-                    member.WriteToStream(instance, bw);
+                return _typeCache.TryGetValue(type, out var m) ? m : GetTypeMembers(type);
             }
+        }
+
+        private static void Write(object instance, BinaryWriter bw)
+        {
+            if (instance == null)
+                return;
+
+            var type = instance.GetType();
+            var members = GetOrAddCachedMembers(type);
+
+            foreach (var member in members)
+                member.WriteToStream(instance, bw);
         }
 
         private static object Read(BinaryReader br, Type type)
         {
-            var members =
-                _typeCache.TryGetValue(type, out var m) ? m : GetTypeMembers(type);
-
+            var members = GetOrAddCachedMembers(type);
             var instance = Activator.CreateInstance(type);
 
             foreach (var member in members)
@@ -401,7 +401,7 @@ namespace Oldsu.Bancho
             return (T)Read(br, typeof(T));
         }
 
-        public static Span<byte> Serialize(object instance)
+        public static byte[] Serialize(object instance)
         {
             if (instance == null)
                 return null;
@@ -410,7 +410,7 @@ namespace Oldsu.Bancho
             using (var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true))
                 Write(instance, bw);
 
-            return new Span<byte>(ms.GetBuffer(), 0, (int)ms.Length);
+            return ms.ToArray();
         }
     }
 }
