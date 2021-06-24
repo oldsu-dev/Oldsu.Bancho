@@ -89,7 +89,7 @@ namespace Oldsu.Bancho
         ///     Returns the authentication result of the user.
         /// </summary>
         /// <param name="authenticationString"> Authentication string seperated by \n </param>
-        /// <returns> Result of the authentication and the User variable, if the authentication was successful </returns>
+        /// <returns> Result of the authentication. the User and Version variables get returned, if the authentication was successful </returns>
         private static async Task<(LoginResult, User, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
         {
             var (loginUsername, loginPassword, info) =
