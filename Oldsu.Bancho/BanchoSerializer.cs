@@ -408,8 +408,12 @@ namespace Oldsu.Bancho
             return (id, length);
         }
 
+        private static readonly byte[] _dummyHeader = new byte[7]; 
+        
         private static void Write(object instance, BinaryWriter bw)
         {
+            bw.Write(_dummyHeader);
+            
             bw.BaseStream.Seek(7, SeekOrigin.Begin);
             
             if (instance == null)
