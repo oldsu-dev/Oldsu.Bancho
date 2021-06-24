@@ -5,23 +5,21 @@ namespace Oldsu.Bancho.Packet.In.B394a
 {
     public struct SendUserStatus : Into<ISharedPacket>
     {
-        [BanchoSerializable] public byte Status;
-        [BanchoSerializable] public bool IsBeatmapUpdate;
-        [BanchoSerializable] public BeatmapUpdate BeatmapUpdate;
+        [BanchoSerializable] public bStatusUpdate bStatusUpdate;
 
         ISharedPacket Into<ISharedPacket>.Into()
         {
             var userActivity = new UserActivity();
 
-            userActivity.Status = Status;
+            userActivity.Status = bStatusUpdate.bStatus;
             userActivity.Gamemode = 0;
             userActivity.MapID = 0;
             
-            if (IsBeatmapUpdate)
+            if (bStatusUpdate.BeatmapUpdate)
             {
-                userActivity.Map = BeatmapUpdate.Map ;
-                userActivity.MapSHA256 = BeatmapUpdate.MapSha256;
-                userActivity.Mods = BeatmapUpdate.Mods;
+                userActivity.Map = bStatusUpdate.Map ;
+                userActivity.MapSHA256 = bStatusUpdate.MapSha256;
+                userActivity.Mods = bStatusUpdate.Mods;
             }
             else
             {
