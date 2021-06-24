@@ -7,16 +7,25 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 {
+    public enum BanchoPacketType
+    {
+        In,
+        Out
+    }
+    
     public class BanchoPacketAttribute : System.Attribute
     {
         public ushort Id { get; }
 
         public Version Version { get; }
         
-        public BanchoPacketAttribute(ushort id, Version version)
+        public BanchoPacketType Type { get; }
+        
+        public BanchoPacketAttribute(ushort id, Version version, BanchoPacketType type)
         {
             Id = id;
             Version = version;
+            Type = type;
         }
     }
 

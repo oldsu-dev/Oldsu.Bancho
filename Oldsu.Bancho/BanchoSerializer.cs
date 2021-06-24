@@ -338,7 +338,11 @@ namespace Oldsu.Bancho
 
         private static readonly IReadOnlyDictionary<(ushort, Version), Type> _packets =
             Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes()
-                .Where(t => t.GetCustomAttribute<BanchoPacketAttribute>() != null)
+                .Where(t =>
+                {
+                    var attribute = t.GetCustomAttribute<BanchoPacketAttribute>();
+                    return attribute is { Type: BanchoPacketType.In };
+                })
                 .ToDictionary(t =>
                 {
                     var attribute = t.GetCustomAttribute<BanchoPacketAttribute>();
