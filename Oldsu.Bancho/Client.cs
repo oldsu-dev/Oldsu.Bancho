@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net.Http;
-using System.Net.Sockets;
 using System.Threading.Tasks;
 using Fleck;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
-using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared;
 using Oldsu.Types;
 using osuserver2012.Enums;
+
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
@@ -23,12 +23,13 @@ namespace Oldsu.Bancho
         ///     Key-Value dictionary of all clients.
         ///     TODO: Implement a multiple key-value dictionary.
         /// </summary>
-        public static ConcurrentDictionary<int, Client> Clients = new();
+        public static ConcurrentDictionary<uint, Client> Clients = new();
 
         private IWebSocketConnection _webSocketConnection;
         
         public User User;
         public Stats Stats;
+        public Status Status;
         public Presence Presence;
 
         public Version Version;
@@ -42,8 +43,17 @@ namespace Oldsu.Bancho
         ///     Sends packet to client.
         /// </summary>
         /// <param name="sharedPacket"> Packet meant to be sent. </param>
-        private async Task SendPacket(BanchoPacket packet) {
-            
+        private async Task SendPacket(BanchoPacket packet)
+        {
+            try
+            {
+                var x = packet.GetDataByVersion(this.Version);
+                await _webSocketConnection.Send(x);
+            }
+            catch (ConnectionNotAvailableException exception)
+            {
+                await Disconnect();
+            }
         }
         
         /// <summary>
@@ -62,10 +72,18 @@ namespace Oldsu.Bancho
                 case LoginResult.AuthenticationSuccessful:
                     var db = new Database();
 
-                    Stats = await db.Stats.FindAsync(User.UserID);
+                    Stats = await db.Stats
+                                        .Where(s => s.UserID == User.UserID)
+                                        .FirstAsync();
+
+                    Status = new Status();
 
                     await SendPacket(new BanchoPacket(
                         new Login { LoginStatus = (int)loginStatus, Privilege = (byte)User.Privileges })
+                    );
+
+                    await SendPacket(new BanchoPacket(
+                        new StatusUpdate { Stats = Stats, User = User, Status = Status })
                     );
                     
                     break;
@@ -77,6 +95,14 @@ namespace Oldsu.Bancho
                     
                     break;
             }
+        }
+
+        /// <summary>
+        ///     Disconnects client from the server.
+        /// </summary>
+        public async Task Disconnect()
+        {
+            Clients.TryRemove(User.UserID, out _);
         }
 
         /// <summary>
