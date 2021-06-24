@@ -62,10 +62,10 @@ namespace Oldsu.Bancho
         /// <param name="authenticationString"> Authentication string that osu! sends on login. </param>
         public async Task HandleLoginAsync(string authenticationString)
         {
-            var (loginStatus, user) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
+            var (loginStatus, user, version) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
             
             User = user;
-            Version = Version.B394A;
+            Version = version;
 
             switch (loginStatus)
             {
@@ -90,29 +90,34 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="authenticationString"> Authentication string seperated by \n </param>
         /// <returns> Result of the authentication and the User variable, if the authentication was successful </returns>
-        private static async Task<(LoginResult, User)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
+        private static async Task<(LoginResult, User, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
         {
             var (loginUsername, loginPassword, info) =
                 (authenticationString[0], authenticationString[1], authenticationString[2]);
 
-            if (info.Split("|")[0] != "1520") // todo version number thing
-                return (LoginResult.TooOldVersion, null);
+            var version = GetProtocol(info.Split("|")[0]);
+            
+            if (version == Version.NotApplicable)
+                return (LoginResult.TooOldVersion, null, version);
             
             await using var db = new Database();
 
             var user = await db.Authenticate(loginUsername, loginPassword);
 
             if (user == null)
-                return (LoginResult.AuthenticationFailed, null);
+                return (LoginResult.AuthenticationFailed, null, version);
             
             if (user.Banned == true)
-                return (LoginResult.Banned, null);
+                return (LoginResult.Banned, null, version);
 
             // user is found, user is not banned, client is not too old. Everything is fine.
-            return (LoginResult.AuthenticationSuccessful, user);
+            return (LoginResult.AuthenticationSuccessful, user, version);
         }
 
-        
+        private static Version GetProtocol(string clientBuild) => clientBuild switch {
+            "1520" => Version.B394A,
+            _ => Version.NotApplicable,
+        };
         
         private static async Task<(float, float)> RetrieveGeoLocationAsync(string ip)
         {
