@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Sockets;
@@ -7,9 +8,9 @@ using Fleck;
 using Newtonsoft.Json;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared;
-using Oldsu.Enums;
 using Oldsu.Types;
 using osuserver2012.Enums;
+using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 { 
@@ -42,7 +43,7 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="sharedPacket"> Packet meant to be sent. </param>
         private async Task SendPacket(ISharedPacket sharedPacket) {
-            dynamic packet = null;  
+            object packet = null;  
 
             switch (this.Version) {
                 case Version.B394A:
@@ -61,8 +62,9 @@ namespace Oldsu.Bancho
         /// <param name="authenticationString"> Authentication string that osu! sends on login. </param>
         public async Task HandleLoginAsync(string authenticationString)
         {
-            var (loginStatus, User) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
-
+            var (loginStatus, user) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
+            
+            User = user;
             Version = Version.B394A;
 
             switch (loginStatus)
@@ -71,11 +73,13 @@ namespace Oldsu.Bancho
                     var db = new Database();
 
                     Stats = await db.Stats.FindAsync(User.UserID);
+                    
+                    await SendPacket(new Login { LoginStatus = (int)loginStatus, Privilege = (byte)User.Privileges });
 
                     break;
                 
                 default:
-                    SendPacket(new Login((int)loginStatus, (byte)User.Privileges));
+                    await SendPacket(new Login { LoginStatus = (int)loginStatus, Privilege = 0 });
                     
                     break;
             }
