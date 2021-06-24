@@ -3,10 +3,7 @@
     [BanchoPacket(5)]
     public class Login : IB394APacketOut
     {
-        [BanchoSerializable] 
-        public int LoginStatus;
-
-        [BanchoSerializable] 
-        public byte Privilege;
+        [BanchoSerializable] public int LoginStatus;
+        [BanchoSerializable] public byte Privilege;
     }
 }
