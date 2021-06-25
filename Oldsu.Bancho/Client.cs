@@ -77,6 +77,8 @@ namespace Oldsu.Bancho
                                         .FirstAsync();
 
                     Status = new Status();
+                    
+                    Clients.TryAdd(User.UserID, this);
 
                     await SendPacket(new BanchoPacket(
                         new Login { LoginStatus = (int)user.UserID, Privilege = (byte)User.Privileges })
@@ -86,6 +88,13 @@ namespace Oldsu.Bancho
                         new StatusUpdate { Stats = Stats, User = User, Status = Status })
                     );
                     
+                    foreach (var c in Clients.Values)
+                    {
+                        await SendPacket(new BanchoPacket(
+                            new SetPresence { Stats = c.Stats, Presence = c.Presence, User = c.User, Status = c.Status })
+                        );   
+                    }
+
                     break;
                 
                 default:
