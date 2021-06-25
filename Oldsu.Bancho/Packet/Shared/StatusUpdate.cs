@@ -19,7 +19,7 @@ namespace Oldsu.Bancho.Packet.Shared
                 RankedScore = (long)Stats.RankedScore,
                 TotalScore = (long)Stats.TotalScore,
                 Playcount = (int)Stats.Playcount,
-                Accuracy = Stats.Accuracy / 1000,
+                Accuracy = (float)Stats.Accuracy / 1000f,
                 Rank = 0,
                 BStatusUpdate = new bStatusUpdate
                 {

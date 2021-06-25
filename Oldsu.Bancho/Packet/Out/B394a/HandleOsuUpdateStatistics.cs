@@ -7,7 +7,7 @@ namespace Oldsu.Bancho.Packet.Out.B394a
     public class HandleOsuUpdateSelf : IB394APacketOut
     {
         [BanchoSerializable] public int UserID;
-        [BanchoSerializable] public byte Completeness = 0;
+        [BanchoSerializable] public byte Completeness = 1;
         [BanchoSerializable] public bStatusUpdate BStatusUpdate;
         [BanchoSerializable] public long RankedScore;
         [BanchoSerializable] public float Accuracy;

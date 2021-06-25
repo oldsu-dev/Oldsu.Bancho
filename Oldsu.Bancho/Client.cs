@@ -79,7 +79,7 @@ namespace Oldsu.Bancho
                     Status = new Status();
 
                     await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)loginStatus, Privilege = (byte)User.Privileges })
+                        new Login { LoginStatus = (int)user.UserID, Privilege = (byte)User.Privileges })
                     );
 
                     await SendPacket(new BanchoPacket(
@@ -110,7 +110,7 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="authenticationString"> Authentication string seperated by \n </param>
         /// <returns> Result of the authentication. the User and Version variables get returned, if the authentication was successful </returns>
-        private static async Task<(LoginResult, User, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
+        private static async Task<(LoginResult, User?, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
         {
             var (loginUsername, loginPassword, info) =
                 (authenticationString[0], authenticationString[1], authenticationString[2]);
@@ -121,7 +121,6 @@ namespace Oldsu.Bancho
                 return (LoginResult.TooOldVersion, null, version);
             
             await using var db = new Database();
-
             var user = await db.Authenticate(loginUsername, loginPassword);
 
             if (user == null)
