@@ -7,30 +7,28 @@ namespace Oldsu.Bancho.Packet.Shared
 {
     public struct StatusUpdate : ISharedPacket, Into<IB394APacketOut>
     {
-        public User User { get; init; }
-        public Stats Stats { get; init; }
-        public Status Status { get; init; }
+        public Client Client { get; init; }
 
         public IB394APacketOut Into()
         {
             HandleOsuUpdateSelf packet;
-            if (Stats != null) 
+            if (Client.Stats != null) 
             {
                 packet = new HandleOsuUpdateSelf
                 {
-                    UserID = (int)User.UserID,
-                    RankedScore = (long)Stats.RankedScore,
-                    TotalScore = (long)Stats.TotalScore,
-                    Playcount = (int)Stats.Playcount,
-                    Accuracy = Stats.Accuracy / 100f,
+                    UserID = (int)Client.User.UserID,
+                    RankedScore = (long)Client.Stats.RankedScore,
+                    TotalScore = (long)Client.Stats.TotalScore,
+                    Playcount = (int)Client.Stats.Playcount,
+                    Accuracy = Client.Stats.Accuracy / 100f,
                     Rank = 0,
                     BStatusUpdate = new bStatusUpdate
                     {
-                        bStatus = Status.bStatus,
+                        bStatus = Client.Status.bStatus,
                         BeatmapUpdate = true,
-                        Map = Status.Map,
-                        MapSha256 = Status.MapSha256,
-                        Mods = Status.Mods,
+                        Map = Client.Status.Map,
+                        MapSha256 = Client.Status.MapSha256,
+                        Mods = Client.Status.Mods,
                     }
                 };
             }
@@ -38,19 +36,19 @@ namespace Oldsu.Bancho.Packet.Shared
             {
                 packet = new HandleOsuUpdateSelf
                 {
-                    UserID = (int)User.UserID,
+                    UserID = (int)Client.User.UserID,
                     RankedScore = 0,
                     TotalScore = 0,
                     Playcount = 0,
-                    Accuracy = Stats.Accuracy / 100f,
+                    Accuracy = 0 / 100f,
                     Rank = 0,
                     BStatusUpdate = new bStatusUpdate
                     {
-                        bStatus = Status.bStatus,
+                        bStatus = Client.Status.bStatus,
                         BeatmapUpdate = true,
-                        Map = Status.Map,
-                        MapSha256 = Status.MapSha256,
-                        Mods = Status.Mods,
+                        Map = Client.Status.Map,
+                        MapSha256 = Client.Status.MapSha256,
+                        Mods = Client.Status.Mods,
                     }
                 };
             }
