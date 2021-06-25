@@ -12,7 +12,7 @@ namespace Oldsu.Bancho
         In,
         Out
     }
-    
+
     public class BanchoPacketAttribute : System.Attribute
     {
         public ushort Id { get; }
@@ -28,7 +28,7 @@ namespace Oldsu.Bancho
             Type = type;
         }
     }
-
+    
     public class BanchoPacket
     {
         private readonly ConcurrentDictionary<Version, byte[]> _cachedData = new();
@@ -41,9 +41,6 @@ namespace Oldsu.Bancho
 
         private byte[] GetDataByVersion(Version version)
         {
-            if (_payload == null)
-                return null;
-
             object packet = version switch
             {
                 Version.B394A => 
