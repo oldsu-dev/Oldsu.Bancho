@@ -85,13 +85,13 @@ namespace Oldsu.Bancho
                     );
 
                     await SendPacket(new BanchoPacket(
-                        new StatusUpdate { Stats = Stats, User = User, Status = Status })
+                        new StatusUpdate { Client = this })
                     );
                     
                     foreach (var c in Clients.Values)
                     {
                         await SendPacket(new BanchoPacket(
-                            new SetPresence { Stats = c.Stats, Presence = c.Presence, User = c.User, Status = c.Status })
+                            new SetPresence { Client = this })
                         );   
                     }
 
