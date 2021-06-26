@@ -1,11 +1,14 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Fleck;
+using MaxMind.Db;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Shared;
 using Oldsu.Types;
 using osuserver2012.Enums;
@@ -63,6 +66,7 @@ namespace Oldsu.Bancho
         public async Task HandleLoginAsync(string authenticationString)
         {
             var (loginStatus, user, version) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
+            //var (x, y) = await GetGeolocationAsync(_webSocketConnection.ConnectionInfo.ClientIpAddress);
             
             User = user;
             Version = version;
@@ -147,11 +151,31 @@ namespace Oldsu.Bancho
             _ => Version.NotApplicable,
         };
         
-        private static async Task<(float, float)> RetrieveGeoLocationAsync(string ip)
+        private static ConcurrentDictionary<string, GeoLoc> _geoLocCache = new();
+        private static Reader _ipLookupDatabase = new("GeoLite2-City.mmdb", FileAccessMode.Memory);
+        private static HttpClient _httpClient = new();
+        
+        private static async Task<(float, float)> GetGeolocationAsync(string ip)
         {
-            var json = await new HttpClient().GetAsync($"http://ip-api.com/json/{ip}");
+            var data = _ipLookupDatabase.Find<Dictionary<string, object>>(IPAddress.Parse(ip));
+            
+            if (data != null)
+            {
+                var location = (Dictionary<string, object>)data["location"];
+                return ((float)location["latitude"], (float)location["longitude"]);
+            }
 
-            var geoLoc = JsonConvert.DeserializeObject<GeoLocSerialization>(await json.Content.ReadAsStringAsync());
+            if (ip == "127.0.0.1")
+                return (0, 0);
+
+            if (_geoLocCache.TryGetValue(ip, out var geoLoc))
+                return (geoLoc.Lat, geoLoc.Lon);
+
+            var json = await _httpClient.GetAsync($"http://ip-api.com/json/{ip}");
+
+            geoLoc = JsonConvert.DeserializeObject<GeoLoc>(await json.Content.ReadAsStringAsync());
+
+            _geoLocCache.TryAdd(ip, geoLoc);
 
             return (geoLoc.Lat, geoLoc.Lon);
         }
