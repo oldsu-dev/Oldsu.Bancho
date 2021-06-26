@@ -67,25 +67,24 @@ namespace Oldsu.Bancho
         {
             var (loginStatus, user, version) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
             //var (x, y) = await GetGeolocationAsync(_webSocketConnection.ConnectionInfo.ClientIpAddress);
-            
-            User = user;
-            Version = version;
 
             switch (loginStatus)
             {
                 case LoginResult.AuthenticationSuccessful:
                     var db = new Database();
 
+                    User = user;
+                    Version = version;
                     Stats = await db.Stats
-                                        .Where(s => s.UserID == User.UserID)
+                                        .Where(s => s.UserID == User!.UserID)
                                         .FirstAsync();
 
                     Status = new Status();
                     
-                    Clients.TryAdd(User.UserID, this);
+                    Clients.TryAdd(User!.UserID, this);
 
                     await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)user.UserID, Privilege = (byte)User.Privileges })
+                        new Login { LoginStatus = (int)user!.UserID, Privilege = (byte)User.Privileges })
                     );
 
                     await SendPacket(new BanchoPacket(
