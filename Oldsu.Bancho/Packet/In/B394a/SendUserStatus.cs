@@ -1,5 +1,4 @@
 ﻿using Oldsu.Bancho.Objects;
-using Oldsu.Bancho.Packet.Shared;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Enums;
 
@@ -8,7 +7,7 @@ namespace Oldsu.Bancho.Packet.In.B394a
     [BanchoPacket(0, Version.B394A, BanchoPacketType.In)]
     public struct SendUserStatus : Into<ISharedPacket>
     {
-        [BanchoSerializable] public bStatusUpdate bStatusUpdate;
+        [BanchoSerializable] private bStatusUpdate bStatusUpdate;
 
         ISharedPacket Into<ISharedPacket>.Into()
         {
