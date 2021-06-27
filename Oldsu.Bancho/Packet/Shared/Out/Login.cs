@@ -1,6 +1,6 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct Login : ISharedPacket, Into<IB394APacketOut>
+    public struct Login : ISharedPacketOut, Into<IB394APacketOut>
     {
         public int LoginStatus { get; init; }
         public byte Privilege { get; init; }

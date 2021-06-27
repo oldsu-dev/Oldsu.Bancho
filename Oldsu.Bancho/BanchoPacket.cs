@@ -32,9 +32,9 @@ namespace Oldsu.Bancho
     public class BanchoPacket
     {
         private readonly ConcurrentDictionary<Version, byte[]> _cachedData = new();
-        private readonly ISharedPacket _payload;
+        private readonly ISharedPacketOut _payload;
 
-        public BanchoPacket(ISharedPacket payload)
+        public BanchoPacket(ISharedPacketOut payload)
         {
             _payload = payload;
         }
@@ -55,7 +55,7 @@ namespace Oldsu.Bancho
             return BanchoSerializer.Serialize(packet);
         }
 
-        public byte[] GetDataByVersion(Oldsu.Enums.Version version, bool cache = true) =>
+        public byte[] GetDataByVersion(Version version, bool cache = true) =>
             !cache ? GetDataByVersion(version) : _cachedData.GetOrAdd(version, GetDataByVersion);
     }
 }

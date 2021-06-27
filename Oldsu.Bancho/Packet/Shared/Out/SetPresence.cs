@@ -3,7 +3,7 @@ using Oldsu.Bancho.Packet.Out.B394a;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct SetPresence : ISharedPacket, Into<IB394APacketOut>
+    public struct SetPresence : ISharedPacketOut, Into<IB394APacketOut>
     {
         public Client Client { get; init; }
 
@@ -11,6 +11,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
         {
             HandleOsuUpdateOnlineUser packet;
 
+            // todo add null check for stats
             packet = new HandleOsuUpdateOnlineUser
             {
                 UserID = (int)Client.User!.UserID,
@@ -21,7 +22,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                 RankedScore = (long)Client.Stats!.RankedScore,
                 TotalScore = (long)Client.Stats.TotalScore,
                 Playcount = (int)Client.Stats.Playcount,
-                Accuracy = (float)Client.Stats.Accuracy / 100f,
+                Accuracy = Client.Stats.Accuracy / 100f,
                 Rank = 0,
                 BStatusUpdate = new bStatusUpdate
                 {
@@ -30,7 +31,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                     {
                         Map = Client.Activity.Map,
                         MapSha256 = Client.Activity.MapSHA256,
-                        Mods = Client.Activity.Mods,
+                        Mods = Client.Activity.Mods
                     },
                 }
             };
