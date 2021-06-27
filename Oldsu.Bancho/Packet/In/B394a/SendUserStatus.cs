@@ -5,11 +5,11 @@ using Oldsu.Enums;
 namespace Oldsu.Bancho.Packet.In.B394a
 {
     [BanchoPacket(0, Version.B394A, BanchoPacketType.In)]
-    public struct SendUserStatus : Into<ISharedPacket>
+    public struct SendUserStatus : Into<ISharedPacketIn>
     {
         [BanchoSerializable] private bStatusUpdate bStatusUpdate;
 
-        ISharedPacket Into<ISharedPacket>.Into()
+        ISharedPacketIn Into<ISharedPacketIn>.Into()
         {
             var userActivity = new UserActivity();
 

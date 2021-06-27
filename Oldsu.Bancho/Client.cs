@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -52,8 +53,8 @@ namespace Oldsu.Bancho
         /// <summary>
         ///     Sends packet to client.
         /// </summary>
-        /// <param name="sharedPacket"> Packet meant to be sent. </param>
-        private async Task SendPacket(BanchoPacket packet)
+        /// <param name="packet"> Packet meant to be sent. </param>
+        public async Task SendPacket(BanchoPacket packet)
         {
             try
             {
@@ -62,7 +63,8 @@ namespace Oldsu.Bancho
             }
             catch (ConnectionNotAvailableException exception)
             {
-                Disconnect();
+                Debug.WriteLine(exception);
+                //Disconnect();
             }
         }
 
@@ -81,26 +83,11 @@ namespace Oldsu.Bancho
                 return;
             }
             
-            ISharedPacket packet = ((Into<ISharedPacket>)obj).Into();
+            ISharedPacketIn packet = ((Into<ISharedPacketIn>)obj).Into();
 
             Console.WriteLine(packet);
-            
-            switch (packet)
-            {
-                case UserActivity activity:
-                    this.Activity = activity;
-                    
-                    await SendPacket(new BanchoPacket(
-                        new StatusUpdate { Client = this })
-                    );
-                    break;
                 
-                case UserStatsRequest _:
-                    await SendPacket(new BanchoPacket(
-                        new StatusUpdate { Client = this })
-                    );
-                    break;
-            }
+            packet.Handle(this);
         }
         
         /// <summary>
@@ -124,21 +111,17 @@ namespace Oldsu.Bancho
                                         .FirstAsync();
 
                     Activity = new UserActivity();
-                    
+
                     Clients.TryAdd(User!.UserID, this);
 
                     await SendPacket(new BanchoPacket(
                         new Login { LoginStatus = (int)user!.UserID, Privilege = (byte)User.Privileges })
                     );
 
-                    await SendPacket(new BanchoPacket(
-                        new StatusUpdate { Client = this })
-                    );
-                    
                     foreach (var c in Clients.Values)
                     {
                         await SendPacket(new BanchoPacket(
-                            new SetPresence { Client = this })
+                            new SetPresence { Client = c })
                         );   
                     }
 
@@ -223,6 +206,15 @@ namespace Oldsu.Bancho
             _geoLocCache.TryAdd(ip, geoLoc);
 
             return (geoLoc.Lat, geoLoc.Lon);
+        }
+
+        public static void BroadcastPacket(BanchoPacket packet)
+        {
+            
+            foreach (var c in Clients.Values)
+            {
+                _ = c.SendPacket(packet);
+            }
         }
     }
 }

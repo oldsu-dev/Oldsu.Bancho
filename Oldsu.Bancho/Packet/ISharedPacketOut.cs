@@ -2,5 +2,5 @@
 
 namespace Oldsu.Bancho.Packet
 {
-    public interface ISharedPacket { }
+    public interface ISharedPacketOut { }
 }
