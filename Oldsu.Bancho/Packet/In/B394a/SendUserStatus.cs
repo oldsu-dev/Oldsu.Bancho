@@ -1,5 +1,6 @@
 ﻿using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Shared;
+using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Enums;
 
 namespace Oldsu.Bancho.Packet.In.B394a
