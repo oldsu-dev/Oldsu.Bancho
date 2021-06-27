@@ -7,10 +7,11 @@
 
         public IB394APacketOut Into()
         {
-            var packet = new Packet.Out.B394a.Login();
-            
-            packet.LoginStatus = LoginStatus;
-            packet.Privilege = Privilege;
+            var packet = new Packet.Out.B394a.Login
+            {
+                LoginStatus = LoginStatus,
+                Privilege = Privilege
+            };
 
             return packet;
         }
