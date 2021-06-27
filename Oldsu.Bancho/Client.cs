@@ -12,6 +12,8 @@ using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared;
+using Oldsu.Bancho.Packet.Shared.In;
+using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Types;
 using osuserver2012.Enums;
 
