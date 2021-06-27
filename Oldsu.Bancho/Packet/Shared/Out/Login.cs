@@ -1,4 +1,4 @@
-﻿namespace Oldsu.Bancho.Packet.Shared
+﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
     public struct Login : ISharedPacket, Into<IB394APacketOut>
     {
@@ -7,7 +7,7 @@
 
         public IB394APacketOut Into()
         {
-            var packet = new Out.B394a.Login();
+            var packet = new Packet.Out.B394a.Login();
             
             packet.LoginStatus = LoginStatus;
             packet.Privilege = Privilege;

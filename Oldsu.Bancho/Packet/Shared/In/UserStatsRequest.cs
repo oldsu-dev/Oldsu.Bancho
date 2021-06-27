@@ -1,4 +1,4 @@
-﻿namespace Oldsu.Bancho.Packet.Shared
+﻿namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class UserStatsRequest : ISharedPacket
     {

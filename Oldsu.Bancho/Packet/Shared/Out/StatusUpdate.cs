@@ -1,9 +1,7 @@
-﻿using System.Data;
-using Oldsu.Bancho.Objects;
+﻿using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Out.B394a;
-using Oldsu.Types;
 
-namespace Oldsu.Bancho.Packet.Shared
+namespace Oldsu.Bancho.Packet.Shared.Out
 {
     public struct StatusUpdate : ISharedPacket, Into<IB394APacketOut>
     {
@@ -20,7 +18,7 @@ namespace Oldsu.Bancho.Packet.Shared
                     RankedScore = (long)Client.Stats.RankedScore,
                     TotalScore = (long)Client.Stats.TotalScore,
                     Playcount = (int)Client.Stats.Playcount,
-                    Accuracy = (float)(Client.Stats.Accuracy / 100f),
+                    Accuracy = (Client.Stats.Accuracy / 100f),
                     Rank = 0,
                     BStatusUpdate = new bStatusUpdate
                     {

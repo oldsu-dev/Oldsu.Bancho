@@ -1,9 +1,7 @@
-﻿using System.Data;
-using Oldsu.Bancho.Objects;
+﻿using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Out.B394a;
-using Oldsu.Types;
 
-namespace Oldsu.Bancho.Packet.Shared
+namespace Oldsu.Bancho.Packet.Shared.Out
 {
     public struct SetPresence : ISharedPacket, Into<IB394APacketOut>
     {
@@ -17,7 +15,7 @@ namespace Oldsu.Bancho.Packet.Shared
             {
                 UserID = (int)Client.User!.UserID,
                 Username = Client.User.Username,
-                AvatarFilename = "ezchamp_old.jpg",
+                AvatarFilename = "old.jpg",
                 Timezone = 0,
                 Location = "Poopoo",
                 RankedScore = (long)Client.Stats!.RankedScore,
