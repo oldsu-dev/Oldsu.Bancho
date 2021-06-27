@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -9,6 +10,7 @@ using MaxMind.Db;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
+using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared;
 using Oldsu.Types;
 using osuserver2012.Enums;
@@ -28,18 +30,21 @@ namespace Oldsu.Bancho
         /// </summary>
         public static ConcurrentDictionary<uint, Client> Clients = new();
 
-        private IWebSocketConnection _webSocketConnection;
+        private IWebSocketConnection? _webSocketConnection;
         
-        public User User;
-        public Stats Stats;
-        public Status Status;
-        public Presence Presence;
+        public User? User;
+        public Stats? Stats;
+        public UserActivity? Activity;
+        public Presence? Presence;
 
         public Version Version;
 
-        public Client(IWebSocketConnection webSocketConnection)
+        public void BindWebSocket(IWebSocketConnection webSocketConnection)
         {
             _webSocketConnection = webSocketConnection;
+
+            _webSocketConnection.OnMessage = async message => await this.HandleLoginAsync(message);
+            _webSocketConnection.OnBinary = async data => await this.HandleDataAsync(data);
         }
 
         /// <summary>
@@ -51,11 +56,48 @@ namespace Oldsu.Bancho
             try
             {
                 var x = packet.GetDataByVersion(this.Version);
-                await _webSocketConnection.Send(x);
+                await _webSocketConnection!.Send(x);
             }
             catch (ConnectionNotAvailableException exception)
             {
-                await Disconnect();
+                Disconnect();
+            }
+        }
+
+        public async Task HandleDataAsync(byte[] data)
+        {
+            if (this.User == null)
+            {
+                Disconnect();
+                return;
+            }
+
+            var obj = BanchoSerializer.Deserialize(data, this.Version);
+
+            if (obj == null)
+            {
+                return;
+            }
+            
+            ISharedPacket packet = ((Into<ISharedPacket>)obj).Into();
+
+            Console.WriteLine(packet);
+            
+            switch (packet)
+            {
+                case UserActivity activity:
+                    this.Activity = activity;
+                    
+                    await SendPacket(new BanchoPacket(
+                        new StatusUpdate { Client = this })
+                    );
+                    break;
+                
+                case UserStatsRequest _:
+                    await SendPacket(new BanchoPacket(
+                        new StatusUpdate { Client = this })
+                    );
+                    break;
             }
         }
         
@@ -79,7 +121,7 @@ namespace Oldsu.Bancho
                                         .Where(s => s.UserID == User!.UserID)
                                         .FirstAsync();
 
-                    Status = new Status();
+                    Activity = new UserActivity();
                     
                     Clients.TryAdd(User!.UserID, this);
 
@@ -112,9 +154,12 @@ namespace Oldsu.Bancho
         /// <summary>
         ///     Disconnects client from the server.
         /// </summary>
-        public async Task Disconnect()
+        public void Disconnect()
         {
-            Clients.TryRemove(User.UserID, out _);
+            _webSocketConnection!.Close();
+            
+            if (User != null) 
+                Clients.TryRemove(User.UserID, out _);
         }
 
         /// <summary>
@@ -171,7 +216,6 @@ namespace Oldsu.Bancho
                 return (geoLoc.Lat, geoLoc.Lon);
 
             var json = await _httpClient.GetAsync($"http://ip-api.com/json/{ip}");
-
             geoLoc = JsonConvert.DeserializeObject<GeoLoc>(await json.Content.ReadAsStringAsync());
 
             _geoLocCache.TryAdd(ip, geoLoc);

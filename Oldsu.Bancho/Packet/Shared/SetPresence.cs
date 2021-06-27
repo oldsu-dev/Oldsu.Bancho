@@ -15,23 +15,25 @@ namespace Oldsu.Bancho.Packet.Shared
 
             packet = new HandleOsuUpdateOnlineUser
             {
-                UserID = (int)Client.User.UserID,
+                UserID = (int)Client.User!.UserID,
                 Username = Client.User.Username,
                 AvatarFilename = "ezchamp_old.jpg",
                 Timezone = 0,
                 Location = "Poopoo",
-                RankedScore = (long)Client.Stats.RankedScore,
+                RankedScore = (long)Client.Stats!.RankedScore,
                 TotalScore = (long)Client.Stats.TotalScore,
                 Playcount = (int)Client.Stats.Playcount,
-                Accuracy = Client.Stats.Accuracy / 100f,
+                Accuracy = (float)Client.Stats.Accuracy / 100f,
                 Rank = 0,
                 BStatusUpdate = new bStatusUpdate
                 {
-                    bStatus = Client.Status.bStatus,
-                    BeatmapUpdate = true,
-                    Map = Client.Status.Map,
-                    MapSha256 = Client.Status.MapSha256,
-                    Mods = Client.Status.Mods,
+                    bStatus = Client.Activity!.Status,
+                    BeatmapUpdate = new BeatmapUpdate
+                    {
+                        Map = Client.Activity.Map,
+                        MapSha256 = Client.Activity.MapSHA256,
+                        Mods = Client.Activity.Mods,
+                    },
                 }
             };
 
