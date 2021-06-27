@@ -27,7 +27,7 @@ namespace Oldsu.Bancho
             {
                 _server.Start(socket =>
                 {
-                    socket.OnMessage = async message => await (new Client(socket)).HandleLoginAsync(message);
+                    new Client().BindWebSocket(socket);
                 });
             }
             catch (Exception e)

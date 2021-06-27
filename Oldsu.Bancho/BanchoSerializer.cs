@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -11,7 +12,14 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 {
-    public class BanchoSerializableAttribute : System.Attribute { }
+    public class BanchoSerializableAttribute : System.Attribute
+    {
+        public bool Optional { get; }
+        public BanchoSerializableAttribute(bool optional = false)
+        {
+            Optional = optional;
+        }
+    }
     
     public static class BanchoSerializer
     {
@@ -19,9 +27,10 @@ namespace Oldsu.Bancho
 
         private abstract class TypeMember
         {
+            public bool IsOptional { get; }
             protected MemberInfo Info { get; }
 
-            protected object? GetValueFromObject(object instance)
+            public object? GetValueFromObject(object instance)
             {
                 return Info.MemberType switch
                 {
@@ -52,6 +61,8 @@ namespace Oldsu.Bancho
             protected TypeMember(MemberInfo info)
             {
                 Info = info;
+
+                IsOptional = info.GetCustomAttribute<BanchoSerializableAttribute>()!.Optional;
             }
 
             public abstract void ReadFromStream(object? instance, BinaryReader br);
@@ -343,6 +354,7 @@ namespace Oldsu.Bancho
             if (type.IsEnum)
                 type = type.GetEnumUnderlyingType();
 
+            
             return type;
         }
 
@@ -396,7 +408,7 @@ namespace Oldsu.Bancho
         {
             var type = instance.GetType();
             var attribute = type.GetCustomAttribute<BanchoPacketAttribute>();
-
+            
             if (attribute == null)
                 throw new ArgumentException("The type is missing the BanchoPacket attribute.");
 
@@ -426,7 +438,20 @@ namespace Oldsu.Bancho
             var members = GetOrAddCachedMembers(type);
 
             foreach (var member in members)
+            {
+                if (member.IsOptional)
+                {
+                    if (member.GetValueFromObject(instance) == null)
+                    {
+                        bw.Write(false);
+                        continue;
+                    }
+                    
+                    bw.Write(true);
+                }
+                
                 member.WriteToStream(instance, bw);
+            }
         }
 
         private static object Read(BinaryReader br, Type type)
@@ -435,29 +460,34 @@ namespace Oldsu.Bancho
             var instance = Activator.CreateInstance(type)!;
 
             foreach (var member in members)
+            {
+                if (member.IsOptional && !br.ReadBoolean())
+                    continue;
+                
                 member.ReadFromStream(instance, br);
+            }
 
             return instance;
         }
 
-        public static object Deserialize(byte[] data, Version version) 
+        public static object? Deserialize(byte[] data, Version version) 
         {
             using var ms = new MemoryStream(data);
             using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
 
             var (id, length) = ReadPacketHeader(br);
 
-            if (_packets.TryGetValue((id, version), out var type))
-                return Read(br, type);
-            
-            throw new ArgumentException("Unknown packet received.");
+            return _packets.TryGetValue((id, version), out var type) ? Read(br, type) : null;
         }
 
         public static byte[] Serialize(object instance)
         {
+            Stopwatch watch = new();
+            
+      
             using var ms = new MemoryStream();
             using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
-            
+
             bw.Write(_dummyHeader);
 
             Write(instance, bw);
