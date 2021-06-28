@@ -1,3 +1,4 @@
+using Oldsu.Diagnostics;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -487,30 +488,19 @@ namespace Oldsu.Bancho
             return _packets.TryGetValue((id, version), out var type) ? Read(br, type) : null;
         }
 
+
         public static byte[] Serialize(object instance)
         {
-#if DEBUG
-            Stopwatch watch = new();
-            
-            try
-            {
-#endif
-                using var ms = new MemoryStream();
-                using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+            using var ms = new MemoryStream();
+            using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
 
-                bw.Write(_dummyHeader);
+            bw.Write(_dummyHeader);
 
-                Write(instance, bw);
-                WritePacketHeader(instance, bw);
+            Write(instance, bw);
+            WritePacketHeader(instance, bw);
 
-                return ms.ToArray();
-#if DEBUG
-            }
-            finally
-            {
-                Console.WriteLine($"[BancohSerializer::Serialize] Serialization of {instance.GetType()} took {watch.ElapsedTicks} ticks");
-            }
-#endif
+            return ms.ToArray();
+
         }
     }
 }
