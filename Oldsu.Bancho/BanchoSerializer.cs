@@ -354,6 +354,13 @@ namespace Oldsu.Bancho
             if (type.IsEnum)
                 type = type.GetEnumUnderlyingType();
 
+            if (type.IsValueType)
+            {
+                Type? nullableType = Nullable.GetUnderlyingType(type);
+                
+                if (nullableType != null)
+                    type = nullableType!;
+            }
             
             return type;
         }
@@ -482,18 +489,28 @@ namespace Oldsu.Bancho
 
         public static byte[] Serialize(object instance)
         {
+#if DEBUG
             Stopwatch watch = new();
             
-      
-            using var ms = new MemoryStream();
-            using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+            try
+            {
+#endif
+                using var ms = new MemoryStream();
+                using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
 
-            bw.Write(_dummyHeader);
+                bw.Write(_dummyHeader);
 
-            Write(instance, bw);
-            WritePacketHeader(instance, bw);
+                Write(instance, bw);
+                WritePacketHeader(instance, bw);
 
-            return ms.ToArray();
+                return ms.ToArray();
+#if DEBUG
+            }
+            finally
+            {
+                Console.WriteLine($"[BancohSerializer::Serialize] Serialization of {instance.GetType()} took {watch.ElapsedTicks} ticks");
+            }
+#endif
         }
     }
 }

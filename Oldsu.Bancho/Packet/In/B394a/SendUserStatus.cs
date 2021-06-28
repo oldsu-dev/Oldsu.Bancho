@@ -7,7 +7,7 @@ namespace Oldsu.Bancho.Packet.In.B394a
     [BanchoPacket(0, Version.B394A, BanchoPacketType.In)]
     public struct SendUserStatus : Into<ISharedPacketIn>
     {
-        [BanchoSerializable] private bStatusUpdate bStatusUpdate;
+        [BanchoSerializable] public bStatusUpdate bStatusUpdate;
 
         ISharedPacketIn Into<ISharedPacketIn>.Into()
         {
