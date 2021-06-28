@@ -1,4 +1,3 @@
-using Oldsu.Diagnostics;
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
@@ -366,7 +365,7 @@ namespace Oldsu.Bancho
             return type;
         }
 
-        private static readonly IReadOnlyDictionary<(ushort, Version), Type> _packets =
+        private static readonly IReadOnlyDictionary<(ushort, Version), Type> _inPackets =
             Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes()
                 .Where(t =>
                 {
@@ -379,7 +378,10 @@ namespace Oldsu.Bancho
                     return (attribute.Id, attribute.Version);
                 });
 
-        private static readonly ConcurrentDictionary<Type, ImmutableArray<TypeMember>> _typeCache = new();
+        private static readonly ConcurrentDictionary<Type, BanchoPacketAttribute> _packetAttributeCache =
+            new();
+
+        private static readonly ConcurrentDictionary<Type, ImmutableArray<TypeMember>> _memberCache = new();
 
         private static IEnumerable<MemberInfo> GetAllMemberInfo(Type type) =>
             type.GetMembers().Concat(type.GetProperties());
@@ -410,25 +412,8 @@ namespace Oldsu.Bancho
         }
 
         private static ImmutableArray<TypeMember> GetOrAddCachedMembers(Type type) => 
-            _typeCache.GetOrAdd(type, GetTypeMembers);
+            _memberCache.GetOrAdd(type, GetTypeMembers);
 
-        private static void WritePacketHeader(object instance, BinaryWriter bw)
-        {
-            var type = instance.GetType();
-            var attribute = type.GetCustomAttribute<BanchoPacketAttribute>();
-            
-            if (attribute == null)
-                throw new ArgumentException("The type is missing the BanchoPacket attribute.");
-
-            var packetLength = bw.BaseStream.Length - 7;
-
-            bw.BaseStream.Seek(0, SeekOrigin.Begin);
-            
-            bw.Write(attribute.Id);
-            bw.Write(false);
-            bw.Write((int)packetLength);
-        }
-        
         private static (ushort id, uint length) ReadPacketHeader(BinaryReader br)
         {
             var id = br.ReadUInt16();
@@ -438,8 +423,6 @@ namespace Oldsu.Bancho
             return (id, length);
         }
 
-        private static readonly byte[] _dummyHeader = new byte[7]; 
-        
         private static void Write(object instance, BinaryWriter bw)
         {
             var type = instance.GetType();
@@ -483,9 +466,9 @@ namespace Oldsu.Bancho
             using var ms = new MemoryStream(data);
             using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
 
-            var (id, length) = ReadPacketHeader(br);
+            var (id, _) = ReadPacketHeader(br);
 
-            return _packets.TryGetValue((id, version), out var type) ? Read(br, type) : null;
+            return _inPackets.TryGetValue((id, version), out var type) ? Read(br, type) : null;
         }
 
 
@@ -494,13 +477,27 @@ namespace Oldsu.Bancho
             using var ms = new MemoryStream();
             using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
 
-            bw.Write(_dummyHeader);
+            var attrib = _packetAttributeCache.GetOrAdd(instance.GetType(), t =>
+            {
+                var attrib = t.GetCustomAttribute<BanchoPacketAttribute>();
+
+                if (attrib == null)
+                    throw new ArgumentException("Missing BanchoPacketAttribute.");
+
+                return attrib;
+            });
+
+            bw.Write(attrib.Id);
+            bw.Write((byte)0x0);
+            bw.Write((int)0x0);
 
             Write(instance, bw);
-            WritePacketHeader(instance, bw);
 
+            bw.Seek(3, SeekOrigin.Begin);
+
+            bw.Write(bw.BaseStream.Length - 7);
+            
             return ms.ToArray();
-
         }
     }
 }
