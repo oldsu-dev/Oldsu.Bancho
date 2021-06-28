@@ -46,8 +46,9 @@ namespace Oldsu.Bancho
         {
             _webSocketConnection = webSocketConnection;
 
-            _webSocketConnection.OnMessage = async message => await this.HandleLoginAsync(message);
-            _webSocketConnection.OnBinary = async data => await this.HandleDataAsync(data);
+            _webSocketConnection.OnMessage += HandleLoginAsync;
+            _webSocketConnection.OnBinary += HandleDataAsync;
+            _webSocketConnection.OnClose += HandleClose;
         }
 
         /// <summary>
@@ -56,6 +57,9 @@ namespace Oldsu.Bancho
         /// <param name="packet"> Packet meant to be sent. </param>
         public async Task SendPacket(BanchoPacket packet)
         {
+            if (!_webSocketConnection!.IsAvailable)
+                return;
+
             try
             {
                 var x = packet.GetDataByVersion(this.Version);
@@ -68,7 +72,7 @@ namespace Oldsu.Bancho
             }
         }
 
-        public async Task HandleDataAsync(byte[] data)
+        public async void HandleDataAsync(byte[] data)
         {
             if (this.User == null)
             {
@@ -84,17 +88,15 @@ namespace Oldsu.Bancho
             }
             
             ISharedPacketIn packet = ((Into<ISharedPacketIn>)obj).Into();
-
-            Console.WriteLine(packet);
                 
-            packet.Handle(this);
+            await packet.Handle(this);
         }
         
         /// <summary>
         ///     Handles incoming login requests accordingly.
         /// </summary>
         /// <param name="authenticationString"> Authentication string that osu! sends on login. </param>
-        public async Task HandleLoginAsync(string authenticationString)
+        public async void HandleLoginAsync(string authenticationString)
         {
             var (loginStatus, user, version) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
             //var (x, y) = await GetGeolocationAsync(_webSocketConnection.ConnectionInfo.ClientIpAddress);
@@ -136,16 +138,21 @@ namespace Oldsu.Bancho
             }
         }
 
+        public void HandleClose()
+        {
+            _webSocketConnection!.OnMessage -= HandleLoginAsync;
+            _webSocketConnection!.OnBinary -= HandleDataAsync;
+            _webSocketConnection!.OnClose -= HandleClose;
+
+            if (User != null)
+                Clients.TryRemove(User.UserID, out _);
+        }
+
         /// <summary>
         ///     Disconnects client from the server.
         /// </summary>
-        public void Disconnect()
-        {
-            _webSocketConnection!.Close();
-            
-            if (User != null) 
-                Clients.TryRemove(User.UserID, out _);
-        }
+        public void Disconnect() => 
+            _webSocketConnection?.Close();
 
         /// <summary>
         ///     Returns the authentication result of the user.
