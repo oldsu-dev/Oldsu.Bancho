@@ -15,6 +15,7 @@ using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Enums;
 using Oldsu.Types;
 using osuserver2012.Enums;
 
@@ -103,7 +104,7 @@ namespace Oldsu.Bancho
         public async void HandleLoginAsync(string authenticationString)
         {
             var (loginStatus, user, version) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
-            //var (x, y) = await GetGeolocationAsync(_webSocketConnection.ConnectionInfo.ClientIpAddress);
+            var (x, y) = await GetGeolocationAsync(_webSocketConnection.ConnectionInfo.ClientIpAddress);
 
             switch (loginStatus)
             {
@@ -117,6 +118,15 @@ namespace Oldsu.Bancho
                                         .FirstAsync();
 
                     Activity = new UserActivity();
+                    
+                    Presence = new Presence
+                    {
+                        Privilege = User!.Privileges,
+                        UtcOffset = 0,
+                        Country = 0,
+                        Longitude = x,
+                        Latitude = y
+                    };
 
                     Clients.TryAdd(User!.UserID, this);
 
@@ -170,7 +180,7 @@ namespace Oldsu.Bancho
 
             var version = GetProtocol(info.Split("|")[0]);
 #if DEBUG
-            Console.WriteLine(authenticationString);
+            Console.WriteLine(info);
 #endif
             if (version == Version.NotApplicable)
                 return (LoginResult.TooOldVersion, null, version);

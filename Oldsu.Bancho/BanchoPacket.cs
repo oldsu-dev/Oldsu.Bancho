@@ -50,6 +50,8 @@ namespace Oldsu.Bancho
                 packet = version switch
                 {
                     Version.B394A => (_payload as Into<IB394APacketOut>)?.Into(),
+                    
+                    Version.B904 => (_payload as Into<IB904PacketOut>)?.Into(),
                 
                     Version.NotApplicable =>
                         throw new InvalidOperationException("This version is not applicable"),
