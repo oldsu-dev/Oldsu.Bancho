@@ -40,7 +40,7 @@ namespace Oldsu.Bancho
         public UserActivity? Activity;
         public Presence? Presence;
 
-        public Version Version;
+        public Version Version = Version.NotApplicable;
 
         public void BindWebSocket(IWebSocketConnection webSocketConnection)
         {
@@ -117,8 +117,8 @@ namespace Oldsu.Bancho
                     Clients.TryAdd(User!.UserID, this);
 
                     await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)user!.UserID, Privilege = (byte)User.Privileges })
-                    );
+                        new Login { LoginStatus = (int)user!.UserID }
+                    ));
 
                     foreach (var c in Clients.Values)
                     {
@@ -131,7 +131,7 @@ namespace Oldsu.Bancho
                 
                 default:
                     await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)loginStatus, Privilege = 0 })
+                        new Login { LoginStatus = (int)loginStatus })
                     );
                     
                     break;

@@ -1,5 +1,5 @@
 ﻿using Oldsu.Bancho.Objects;
-using Oldsu.Bancho.Packet.Out.B394a;
+using Oldsu.Bancho.Packet.Out.B394A;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {

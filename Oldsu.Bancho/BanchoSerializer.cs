@@ -495,7 +495,7 @@ namespace Oldsu.Bancho
 
             bw.Seek(3, SeekOrigin.Begin);
 
-            bw.Write(bw.BaseStream.Length - 7);
+            bw.Write((uint)(bw.BaseStream.Length - 7));
             
             return ms.ToArray();
         }

@@ -1,16 +1,13 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct Login : ISharedPacketOut, Into<IB394APacketOut>
+    public struct Login : ISharedPacketOut, Into<IGenericPacketOut>
     {
         public int LoginStatus { get; init; }
-        public byte Privilege { get; init; }
-
-        public IB394APacketOut Into()
+        public IGenericPacketOut Into()
         {
-            var packet = new Packet.Out.B394a.Login
+            var packet = new Packet.Out.Generic.Login
             {
-                LoginStatus = LoginStatus,
-                Privilege = Privilege
+                LoginStatus = LoginStatus
             };
 
             return packet;
