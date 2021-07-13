@@ -62,8 +62,12 @@ namespace Oldsu.Bancho
 
             try
             {
-                var x = packet.GetDataByVersion(this.Version);
-                await _webSocketConnection!.Send(x);
+                var data = packet.GetDataByVersion(this.Version);
+                
+                if (data.Length == 0)
+                    return;
+
+                await _webSocketConnection!.Send(data);
             }
             catch (ConnectionNotAvailableException exception)
             {
@@ -72,7 +76,7 @@ namespace Oldsu.Bancho
             }
         }
 
-        public async void HandleDataAsync(byte[] data)
+        private async void HandleDataAsync(byte[] data)
         {
             if (this.User == null)
             {
@@ -177,7 +181,7 @@ namespace Oldsu.Bancho
             if (user == null)
                 return (LoginResult.AuthenticationFailed, null, version);
             
-            if (user.Banned == true)
+            if (user.Banned)
                 return (LoginResult.Banned, null, version);
 
             // user is found, user is not banned, client is not too old. Everything is fine.
