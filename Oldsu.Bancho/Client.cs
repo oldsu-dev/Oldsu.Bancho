@@ -165,7 +165,9 @@ namespace Oldsu.Bancho
                 (authenticationString[0], authenticationString[1], authenticationString[2]);
 
             var version = GetProtocol(info.Split("|")[0]);
-            
+#if DEBUG
+            Console.WriteLine(authenticationString);
+#endif
             if (version == Version.NotApplicable)
                 return (LoginResult.TooOldVersion, null, version);
             
@@ -184,6 +186,7 @@ namespace Oldsu.Bancho
 
         private static Version GetProtocol(string clientBuild) => clientBuild switch {
             "1520" => Version.B394A,
+            "2000" => Version.B904,
             _ => Version.NotApplicable,
         };
         
