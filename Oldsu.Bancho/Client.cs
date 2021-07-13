@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
+using Oldsu.Bancho.Packet.Out.B904;
 using Oldsu.Bancho.Packet.Shared;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
@@ -141,6 +142,10 @@ namespace Oldsu.Bancho
                         );   
                     }
 
+                    BroadcastPacket(new BanchoPacket( 
+                            new SetPresence { Client = this })
+                    );
+                    
                     break;
                 
                 default:
@@ -159,7 +164,15 @@ namespace Oldsu.Bancho
             _webSocketConnection!.OnClose -= HandleClose;
 
             if (User != null)
+            {
+                BroadcastPacket(new BanchoPacket(
+                        new UserQuit { UserID = (int)User.UserID })
+                    );
                 Clients.TryRemove(User.UserID, out _);
+#if DEBUG
+                Console.WriteLine(User.Username + " disconnected.");          
+#endif
+            }
         }
 
         /// <summary>
@@ -180,7 +193,7 @@ namespace Oldsu.Bancho
 
             var version = GetProtocol(info.Split("|")[0]);
 #if DEBUG
-            Console.WriteLine(info);
+            //Console.WriteLine(info);
 #endif
             if (version == Version.NotApplicable)
                 return (LoginResult.TooOldVersion, null, version);
@@ -234,7 +247,6 @@ namespace Oldsu.Bancho
 
         public static void BroadcastPacket(BanchoPacket packet)
         {
-            
             foreach (var c in Clients.Values)
             {
                 _ = c.SendPacket(packet);
