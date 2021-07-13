@@ -468,7 +468,10 @@ namespace Oldsu.Bancho
 
             var (id, _) = ReadPacketHeader(br);
 
-            return _inPackets.TryGetValue((id, version), out var type) ? Read(br, type) : null;
+            if (_inPackets.TryGetValue((id, Version.NotApplicable), out var type))
+                return Read(br, type);
+            
+            return _inPackets.TryGetValue((id, version), out type) ? Read(br, type) : null;
         }
 
 
