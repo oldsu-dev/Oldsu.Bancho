@@ -58,8 +58,8 @@
                     bStatus = Client.Activity!.Status,
                     BeatmapUpdate = new Packet.Out.B904.BeatmapUpdate
                     {
-                        Map = Client.Activity.Map ?? "aa",
-                        MapSha256 = Client.Activity.MapSHA256 ?? "aa",
+                        Map = Client.Activity.Map,
+                        MapSha256 = Client.Activity.MapSHA256,
                         Mods = Client.Activity.Mods,
                         Gamemode = Client.Activity.Gamemode,
                         MapId = 0,

@@ -13,7 +13,7 @@ namespace Oldsu.Bancho.Packet.Out.B904
         [BanchoSerializable] public float Accuracy;
         [BanchoSerializable] public int Playcount;
         [BanchoSerializable] public long TotalScore;
-        [BanchoSerializable] public ushort Rank;
+        [BanchoSerializable] public uint Rank;
         [BanchoSerializable] public string Username;
         [BanchoSerializable] public string AvatarFilename;
         [BanchoSerializable] public byte Timezone;
