@@ -12,7 +12,7 @@ namespace Oldsu.Bancho.Benchmarks
         [Benchmark]
         public void SerializeLogin()
         {
-            BanchoSerializer.Serialize(new Packet.Out.B394a.Login { LoginStatus = 2, Privilege = 1 });
+            BanchoSerializer.Serialize(new Packet.Out.Generic.Login { LoginStatus = 2 });
         }
     }
 

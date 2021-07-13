@@ -41,17 +41,24 @@ namespace Oldsu.Bancho
 
         private byte[] GetDataByVersion(Version version)
         {
-            object packet = version switch
-            {
-                Version.B394A => 
-                    ((Into<IB394APacketOut>)_payload).Into(),
-                
-                Version.NotApplicable => 
-                    throw new InvalidOperationException("This version is not applicable"),
-                
-                _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
-            };
+            object packet;
 
+            if (_payload is Into<IGenericPacketOut> generic)
+                packet = generic.Into();
+            else
+            {
+                packet = version switch
+                {
+                    Version.B394A => 
+                        ((Into<IB394APacketOut>)_payload).Into(),
+                
+                    Version.NotApplicable =>
+                        throw new InvalidOperationException("This version is not applicable"),
+                
+                    _ => throw new ArgumentOutOfRangeException(nameof(version), version, null)
+                };
+            }
+            
             return BanchoSerializer.Serialize(packet);
         }
 

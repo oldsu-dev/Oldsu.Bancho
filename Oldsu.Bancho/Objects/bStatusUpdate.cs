@@ -1,6 +1,6 @@
 ﻿namespace Oldsu.Bancho.Objects
 {
-    public class BeatmapUpdate
+    public struct BeatmapUpdate
     {
         [BanchoSerializable] public string Map;
         [BanchoSerializable] public string MapSha256;
