@@ -1,5 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Packet.Shared.Out;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -9,7 +10,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
         public async Task Handle(Client client)
         {
             await client.SendPacket(new BanchoPacket(
-                new StatusUpdate { Client = client, Completeness = Completeness.Self })
+                new StatusUpdate { ClientInfo = client.ClientInfo!, Completeness = Completeness.Self })
             ); 
         }
     }

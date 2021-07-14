@@ -1,4 +1,4 @@
-﻿namespace Oldsu.Bancho
+﻿namespace Oldsu.Bancho.Enums
 {
     public enum Completeness
     {

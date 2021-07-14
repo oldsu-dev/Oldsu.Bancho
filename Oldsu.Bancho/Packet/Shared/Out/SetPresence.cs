@@ -2,7 +2,7 @@
 {
     public struct SetPresence : ISharedPacketOut, Into<IB394APacketOut>, Into<IB904PacketOut>
     {
-        public Client Client { get; init; }
+        public ClientInfo ClientInfo { get; init; }
 
         IB394APacketOut Into<IB394APacketOut>.Into()
         {
@@ -11,24 +11,24 @@
             // todo add null check for stats
             packet = new ()
             {
-                UserID = (int)Client.User!.UserID,
-                Username = Client.User.Username,
+                UserID = (int)ClientInfo.User!.UserID,
+                Username = ClientInfo.User.Username,
                 AvatarFilename = "old.jpg",
                 Timezone = 0,
                 Location = "Poopoo",
-                RankedScore = (long)Client.Stats!.RankedScore,
-                TotalScore = (long)Client.Stats.TotalScore,
-                Playcount = (int)Client.Stats.Playcount,
-                Accuracy = Client.Stats.Accuracy / 100f,
+                RankedScore = (long)ClientInfo.Stats!.RankedScore,
+                TotalScore = (long)ClientInfo.Stats.TotalScore,
+                Playcount = (int)ClientInfo.Stats.Playcount,
+                Accuracy = ClientInfo.Stats.Accuracy / 100f,
                 Rank = 0,
                 BStatusUpdate = new Packet.Out.B394A.bStatusUpdate
                 {
-                    bStatus = Client.Activity!.Status,
+                    bStatus = ClientInfo.Activity!.Status,
                     BeatmapUpdate = new Packet.Out.B394A.BeatmapUpdate
                     {
-                        Map = Client.Activity.Map,
-                        MapSha256 = Client.Activity.MapSHA256,
-                        Mods = Client.Activity.Mods
+                        Map = ClientInfo.Activity.Map,
+                        MapSha256 = ClientInfo.Activity.MapSHA256,
+                        Mods = ClientInfo.Activity.Mods
                     },
                 }
             };
@@ -43,25 +43,25 @@
             // todo add null check for stats
             packet = new()
             {
-                UserID = (int)Client.User!.UserID,
-                Username = Client.User.Username,
+                UserID = (int)ClientInfo.User!.UserID,
+                Username = ClientInfo.User.Username,
                 AvatarFilename = "old.jpg",
                 Timezone = 0,
                 Location = "Poopoo",
-                RankedScore = (long)Client.Stats!.RankedScore,
-                TotalScore = (long)Client.Stats.TotalScore,
-                Playcount = (int)Client.Stats.Playcount,
-                Accuracy = Client.Stats.Accuracy / 100f,
+                RankedScore = (long)ClientInfo.Stats!.RankedScore,
+                TotalScore = (long)ClientInfo.Stats.TotalScore,
+                Playcount = (int)ClientInfo.Stats.Playcount,
+                Accuracy = ClientInfo.Stats.Accuracy / 100f,
                 Rank = 0,
                 BStatusUpdate = new Packet.Out.B904.bStatusUpdate
                 {
-                    bStatus = Client.Activity!.Status,
+                    bStatus = ClientInfo.Activity!.Status,
                     BeatmapUpdate = new Packet.Out.B904.BeatmapUpdate
                     {
-                        Map = Client.Activity.Map,
-                        MapSha256 = Client.Activity.MapSHA256,
-                        Mods = Client.Activity.Mods,
-                        Gamemode = Client.Activity.Gamemode,
+                        Map = ClientInfo.Activity.Map,
+                        MapSha256 = ClientInfo.Activity.MapSHA256,
+                        Mods = ClientInfo.Activity.Mods,
+                        Gamemode = ClientInfo.Activity.GameMode,
                         MapId = 0,
                     }
                 }

@@ -1,4 +1,5 @@
 ﻿using System.Threading.Tasks;
+using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Packet.Shared.Out;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -9,15 +10,15 @@ namespace Oldsu.Bancho.Packet.Shared.In
         public string Map;
         public string MapSHA256;
         public ushort Mods;
-        public byte Gamemode;
+        public byte GameMode;
         public int MapID;
 
         public async Task Handle(Client client)
         {
-            client.Activity = this;
+            client.ClientInfo!.Activity = this;
             
-            Client.BroadcastPacket(new BanchoPacket( 
-                new StatusUpdate { Client = client, Completeness = Completeness.Online } )
+            Server.BroadcastPacket(new BanchoPacket( 
+                new StatusUpdate { ClientInfo = client.ClientInfo, Completeness = Completeness.Online } )
             );
         }
     }
