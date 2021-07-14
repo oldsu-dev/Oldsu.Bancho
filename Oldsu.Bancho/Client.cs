@@ -13,10 +13,8 @@ using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Out.B904;
-using Oldsu.Bancho.Packet.Shared;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Enums;
 using Oldsu.Types;
 using osuserver2012.Enums;
 
@@ -138,15 +136,15 @@ namespace Oldsu.Bancho
                 case LoginResult.AuthenticationSuccessful:
                     var db = new Database();
 
-                    Console.WriteLine("{0} connected.", user.Username);
+                    Console.WriteLine("{0} connected.", user!.Username);
                     
-                    this.ClientInfo = new ClientInfo
+                    ClientInfo = new ClientInfo
                     {
                         User = user,
                         Activity = new UserActivity(),
                         Presence = new Presence
                         {
-                            Privilege = user!.Privileges,
+                            Privilege = user.Privileges,
                             UtcOffset = 0,
                             Country = 0,
                             Longitude = x,
@@ -159,10 +157,10 @@ namespace Oldsu.Bancho
                     
                     Version = version;
                     
-                    Server.AuthenticatedClients.TryAdd(user!.UserID, this);
+                    Server.AuthenticatedClients.TryAdd(user.UserID, user.Username, this);
 
                     await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)user!.UserID }
+                        new Login { LoginStatus = (int)user.UserID }
                     ));
 
                     foreach (var c in Server.AuthenticatedClients.Values)
@@ -173,7 +171,7 @@ namespace Oldsu.Bancho
                     }
 
                     Server.BroadcastPacket(new BanchoPacket( 
-                            new SetPresence { ClientInfo = this.ClientInfo })
+                            new SetPresence { ClientInfo = ClientInfo })
                     );
                     
                     break;
@@ -199,13 +197,13 @@ namespace Oldsu.Bancho
                         new UserQuit { UserID = (int)ClientInfo?.User.UserID! })
                     );
                 
-                Server.AuthenticatedClients.TryRemove(ClientInfo!.User.UserID!, out _);
+                Server.AuthenticatedClients.TryRemove(ClientInfo!.User.UserID!, ClientInfo!.User.Username, out _);
 #if DEBUG
                 Console.WriteLine(ClientInfo?.User.Username + " disconnected.");          
 #endif
             }
             
-            Server.Clients.Remove(_uuid, out var _);
+            Server.Clients.Remove(_uuid, out _);
         }
 
         /// <summary>
@@ -219,7 +217,7 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="authenticationString"> Authentication string seperated by \n </param>
         /// <returns> Result of the authentication. the User and Version variables get returned, if the authentication was successful </returns>
-        private static async Task<(LoginResult, User, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
+        private static async Task<(LoginResult, User?, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
         {
             var (loginUsername, loginPassword, info) =
                 (authenticationString[0], authenticationString[1], authenticationString[2]);
