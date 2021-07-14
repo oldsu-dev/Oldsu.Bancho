@@ -14,7 +14,7 @@ namespace Oldsu.Bancho.Packet.In.B394a
             var userActivity = new UserActivity();
 
             userActivity.Status = bStatusUpdate.bStatus;
-            userActivity.Gamemode = 0;
+            userActivity.GameMode = 0;
             userActivity.MapID = 0;
         
             userActivity.Map = bStatusUpdate.BeatmapUpdate?.Map ?? "";

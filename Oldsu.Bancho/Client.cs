@@ -24,25 +24,40 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 { 
+    public class ClientInfo
+    {
+        public User User;
+        public Stats? Stats;
+        public UserActivity Activity;
+        public Presence Presence;    
+    }
+    
     /// <summary>
     ///     Class for each user in oldsu's bancho
     /// </summary>
     public class Client
     {
+        public ClientInfo? ClientInfo { get; private set; }
+
         /// <summary>
         ///     Key-Value dictionary of all clients.
         ///     TODO: Implement a multiple key-value dictionary.
         /// </summary>
-        public static ConcurrentDictionary<uint, Client> Clients = new();
 
+        private Guid _uuid;
         private IWebSocketConnection? _webSocketConnection;
-        
-        public User? User;
-        public Stats? Stats;
-        public UserActivity? Activity;
-        public Presence? Presence;
 
-        public Version Version = Version.NotApplicable;
+        public const int AuthTimeoutPeriod = 10_000;
+        public const int PingTimeoutPeriod = 35_000;
+
+        public DateTime PingTimeoutWindow { get; private set; } = DateTime.MinValue;
+        
+        public Version Version { get; private set; }= Version.NotApplicable;
+
+        public void ResetPing(int nextPeriod)
+        { 
+            PingTimeoutWindow = DateTime.Now + new TimeSpan(0,0,0,0, nextPeriod);
+        }
 
         public void BindWebSocket(IWebSocketConnection webSocketConnection)
         {
@@ -51,6 +66,11 @@ namespace Oldsu.Bancho
             _webSocketConnection.OnMessage += HandleLoginAsync;
             _webSocketConnection.OnBinary += HandleDataAsync;
             _webSocketConnection.OnClose += HandleClose;
+
+            _uuid = new Guid();
+            Server.Clients.TryAdd(_uuid, this);
+
+            ResetPing(AuthTimeoutPeriod);
         }
 
         /// <summary>
@@ -61,7 +81,7 @@ namespace Oldsu.Bancho
         {
             if (!_webSocketConnection!.IsAvailable)
                 return;
-
+            
             try
             {
                 var data = packet.GetDataByVersion(this.Version);
@@ -80,12 +100,14 @@ namespace Oldsu.Bancho
 
         private async void HandleDataAsync(byte[] data)
         {
-            if (this.User == null)
+            if (ClientInfo == null)
             {
                 Disconnect();
                 return;
             }
-
+            
+            ResetPing(PingTimeoutPeriod);
+            
             var obj = BanchoSerializer.Deserialize(data, this.Version);
 
             if (obj == null)
@@ -97,53 +119,61 @@ namespace Oldsu.Bancho
                 
             await packet.Handle(this);
         }
-        
+
         /// <summary>
         ///     Handles incoming login requests accordingly.
         /// </summary>
         /// <param name="authenticationString"> Authentication string that osu! sends on login. </param>
         public async void HandleLoginAsync(string authenticationString)
         {
-            var (loginStatus, user, version) = await AuthenticateAsync(authenticationString.Replace("\r", "").Split("\n"));
-            var (x, y) = await GetGeolocationAsync(_webSocketConnection.ConnectionInfo.ClientIpAddress);
+            var (loginStatus, user, version) = await AuthenticateAsync(
+                authenticationString.Replace("\r", "").Split("\n"));
+            
+            ResetPing(PingTimeoutPeriod);
+            
+            var (x, y) = await GetGeolocationAsync(_webSocketConnection!.ConnectionInfo.ClientIpAddress);
 
             switch (loginStatus)
             {
                 case LoginResult.AuthenticationSuccessful:
                     var db = new Database();
 
-                    User = user;
-                    Version = version;
-                    Stats = await db.Stats
-                                        .Where(s => s.UserID == User!.UserID)
-                                        .FirstAsync();
-
-                    Activity = new UserActivity();
+                    Console.WriteLine("{0} connected.", user.Username);
                     
-                    Presence = new Presence
+                    this.ClientInfo = new ClientInfo
                     {
-                        Privilege = User!.Privileges,
-                        UtcOffset = 0,
-                        Country = 0,
-                        Longitude = x,
-                        Latitude = y
+                        User = user,
+                        Activity = new UserActivity(),
+                        Presence = new Presence
+                        {
+                            Privilege = user!.Privileges,
+                            UtcOffset = 0,
+                            Country = 0,
+                            Longitude = x,
+                            Latitude = y
+                        },
+                        Stats = await db.Stats
+                            .Where(s => s.UserID == user.UserID)
+                            .FirstAsync()
                     };
-
-                    Clients.TryAdd(User!.UserID, this);
+                    
+                    Version = version;
+                    
+                    Server.AuthenticatedClients.TryAdd(user!.UserID, this);
 
                     await SendPacket(new BanchoPacket(
                         new Login { LoginStatus = (int)user!.UserID }
                     ));
 
-                    foreach (var c in Clients.Values)
+                    foreach (var c in Server.AuthenticatedClients.Values)
                     {
                         await SendPacket(new BanchoPacket(
-                            new SetPresence { Client = c })
+                            new SetPresence { ClientInfo = c.ClientInfo! })
                         );   
                     }
 
-                    BroadcastPacket(new BanchoPacket( 
-                            new SetPresence { Client = this })
+                    Server.BroadcastPacket(new BanchoPacket( 
+                            new SetPresence { ClientInfo = this.ClientInfo })
                     );
                     
                     break;
@@ -163,16 +193,19 @@ namespace Oldsu.Bancho
             _webSocketConnection!.OnBinary -= HandleDataAsync;
             _webSocketConnection!.OnClose -= HandleClose;
 
-            if (User != null)
+            if (ClientInfo != null)
             {
-                BroadcastPacket(new BanchoPacket(
-                        new UserQuit { UserID = (int)User.UserID })
+                Server.BroadcastPacket(new BanchoPacket(
+                        new UserQuit { UserID = (int)ClientInfo?.User.UserID! })
                     );
-                Clients.TryRemove(User.UserID, out _);
+                
+                Server.AuthenticatedClients.TryRemove(ClientInfo!.User.UserID!, out _);
 #if DEBUG
-                Console.WriteLine(User.Username + " disconnected.");          
+                Console.WriteLine(ClientInfo?.User.Username + " disconnected.");          
 #endif
             }
+            
+            Server.Clients.Remove(_uuid, out var _);
         }
 
         /// <summary>
@@ -186,7 +219,7 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="authenticationString"> Authentication string seperated by \n </param>
         /// <returns> Result of the authentication. the User and Version variables get returned, if the authentication was successful </returns>
-        private static async Task<(LoginResult, User?, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
+        private static async Task<(LoginResult, User, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
         {
             var (loginUsername, loginPassword, info) =
                 (authenticationString[0], authenticationString[1], authenticationString[2]);
@@ -217,13 +250,13 @@ namespace Oldsu.Bancho
             _ => Version.NotApplicable,
         };
         
-        private static ConcurrentDictionary<string, GeoLoc> _geoLocCache = new();
-        private static Reader _ipLookupDatabase = new("GeoLite2-City.mmdb", FileAccessMode.Memory);
-        private static HttpClient _httpClient = new();
+        private static readonly ConcurrentDictionary<string, GeoLoc> GeoLocCache = new();
+        private static readonly Reader IpLookupDatabase = new("GeoLite2-City.mmdb", FileAccessMode.Memory);
+        private static readonly HttpClient HttpClient = new();
         
         private static async Task<(float, float)> GetGeolocationAsync(string ip)
         {
-            var data = _ipLookupDatabase.Find<Dictionary<string, object>>(IPAddress.Parse(ip));
+            var data = IpLookupDatabase.Find<Dictionary<string, object>>(IPAddress.Parse(ip));
             
             if (data != null)
             {
@@ -234,23 +267,17 @@ namespace Oldsu.Bancho
             if (ip == "127.0.0.1")
                 return (0, 0);
 
-            if (_geoLocCache.TryGetValue(ip, out var geoLoc))
+            if (GeoLocCache.TryGetValue(ip, out var geoLoc))
                 return (geoLoc.Lat, geoLoc.Lon);
 
-            var json = await _httpClient.GetAsync($"http://ip-api.com/json/{ip}");
+            var json = await HttpClient.GetAsync($"http://ip-api.com/json/{ip}");
             geoLoc = JsonConvert.DeserializeObject<GeoLoc>(await json.Content.ReadAsStringAsync());
 
-            _geoLocCache.TryAdd(ip, geoLoc);
+            GeoLocCache.TryAdd(ip, geoLoc);
 
             return (geoLoc.Lat, geoLoc.Lon);
         }
 
-        public static void BroadcastPacket(BanchoPacket packet)
-        {
-            foreach (var c in Clients.Values)
-            {
-                _ = c.SendPacket(packet);
-            }
-        }
+
     }
 }
