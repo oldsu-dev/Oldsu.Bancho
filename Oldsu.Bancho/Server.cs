@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
+using Oldsu.Utils;
 
 namespace Oldsu.Bancho
 {
@@ -12,7 +13,7 @@ namespace Oldsu.Bancho
     {
         private readonly WebSocketServer _server;
 
-        public static readonly ConcurrentDictionary<uint, Client> AuthenticatedClients = new();
+        public static readonly MultiKeyConcurrentDictionary<uint, string, Client> AuthenticatedClients = new();
         public static readonly ConcurrentDictionary<Guid, Client> Clients = new();
 
         private static async Task PingWatchdog(CancellationToken ct = default)
@@ -38,6 +39,10 @@ namespace Oldsu.Bancho
 
         }
 
+        /// <summary>
+        ///     Broadcasting to all clients.
+        /// </summary>
+        /// <param name="packet">Packet to broadcast</param>
         public static void BroadcastPacket(BanchoPacket packet)
         {
             foreach (var c in AuthenticatedClients.Values)
@@ -46,6 +51,30 @@ namespace Oldsu.Bancho
             }
         }
         
+        /// <summary>
+        ///     Broadcasting to other clients. 
+        /// </summary>
+        /// <param name="packet">Packet to broadcast</param>
+        /// <param name="id">Id of client to avoid</param>
+        public static void BroadcastPacketToOthers(BanchoPacket packet, uint id)
+        {
+            foreach (var c in AuthenticatedClients.Values.Where(u => u.ClientInfo.User.UserID != id))
+            {
+                _ = c.SendPacket(packet);
+            }
+        }
+        
+        /// <summary>
+        ///     Broadcasting to other clients. 
+        /// </summary>
+        /// <param name="packet">Packet to broadcast</param>
+        /// <param name="id">Id of client to avoid</param>
+        public static void SendPacketToSpecificUser(BanchoPacket packet, string username)
+        {
+            if (AuthenticatedClients.TryGetValue(username, out var user))
+                _ = user.SendPacket(packet);
+        }
+
         /// <summary>
         ///     Starts a websocket server and listening to incoming traffic.
         ///     Also calls HandleLoginAsync on client login.
@@ -67,8 +96,7 @@ namespace Oldsu.Bancho
             {
                 Console.WriteLine(e);
             }
-            
-            
+
             await Task.Delay(-1, ct);
         }
     }
