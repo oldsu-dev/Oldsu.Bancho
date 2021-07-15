@@ -46,7 +46,7 @@ namespace Oldsu.Bancho
             throw new NotImplementedException();
         }
 
-        public void StartSpectating()
+        public void StartSpectating(Client client)
         {
             throw new NotImplementedException();
         }
