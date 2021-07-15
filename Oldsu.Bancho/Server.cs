@@ -45,7 +45,8 @@ namespace Oldsu.Bancho
         /// <param name="packet">Packet to broadcast</param>
         public static void BroadcastPacket(BanchoPacket packet)
         {
-            foreach (var c in AuthenticatedClients.Values)
+            using var clients = AuthenticatedClients.Values;
+            foreach (var c in clients)
             {
                 _ = c.SendPacket(packet);
             }
@@ -58,17 +59,18 @@ namespace Oldsu.Bancho
         /// <param name="id">Id of client to avoid</param>
         public static void BroadcastPacketToOthers(BanchoPacket packet, uint id)
         {
-            foreach (var c in AuthenticatedClients.Values.Where(u => u.ClientContext!.User.UserID != id))
+            using var clients = AuthenticatedClients.Values;
+            foreach (var c in clients.Where(u => u.ClientContext!.User.UserID != id))
             {
                 _ = c.SendPacket(packet);
             }
         }
         
         /// <summary>
-        ///     Broadcasting to other clients. 
+        ///     Send packet to a specific user in the server.
         /// </summary>
-        /// <param name="packet">Packet to broadcast</param>
-        /// <param name="id">Id of client to avoid</param>
+        /// <param name="packet">Packet to send</param>
+        /// <param name="username">Username of the user to send the packet to.</param>
         public static void SendPacketToSpecificUser(BanchoPacket packet, string username)
         {
             if (AuthenticatedClients.TryGetValue(username, out var user))
