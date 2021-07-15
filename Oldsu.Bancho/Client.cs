@@ -22,7 +22,7 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 { 
-    public class ClientInfo
+    public class ClientContext
     {
         public User User;
         public Stats? Stats;
@@ -30,12 +30,30 @@ namespace Oldsu.Bancho
         public Presence Presence;    
     }
     
+    public class SpectatorContext
+    {
+        public Client? Host { get; set; }
+        public ConcurrentDictionary<uint, Client>? Spectators { get; set; }
+
+        public void StopSpecating()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void StartSpectating()
+        {
+            throw new NotImplementedException();
+        }
+    }
+    
     /// <summary>
     ///     Class for each user in oldsu's bancho
     /// </summary>
     public class Client
     {
-        public ClientInfo? ClientInfo { get; private set; }
+        public ClientContext? ClientContext { get; private set; }
+
+        public SpectatorContext SpectatorContext { get; set; }
 
         /// <summary>
         ///     Key-Value dictionary of all clients.
@@ -98,7 +116,7 @@ namespace Oldsu.Bancho
 
         private async void HandleDataAsync(byte[] data)
         {
-            if (ClientInfo == null)
+            if (ClientContext == null)
             {
                 Disconnect();
                 return;
@@ -138,7 +156,7 @@ namespace Oldsu.Bancho
 
                     Console.WriteLine("{0} connected.", user!.Username);
                     
-                    ClientInfo = new ClientInfo
+                    ClientContext = new ClientContext
                     {
                         User = user,
                         Activity = new UserActivity(),
@@ -166,12 +184,12 @@ namespace Oldsu.Bancho
                     foreach (var c in Server.AuthenticatedClients.Values)
                     {
                         await SendPacket(new BanchoPacket(
-                            new SetPresence { ClientInfo = c.ClientInfo! })
+                            new SetPresence { ClientInfo = c.ClientContext! })
                         );   
                     }
 
                     Server.BroadcastPacket(new BanchoPacket( 
-                            new SetPresence { ClientInfo = ClientInfo })
+                            new SetPresence { ClientInfo = ClientContext })
                     );
 
                     await SendPacket(new BanchoPacket(
@@ -204,19 +222,19 @@ namespace Oldsu.Bancho
             _webSocketConnection!.OnBinary -= HandleDataAsync;
             _webSocketConnection!.OnClose -= HandleClose;
 
-            if (ClientInfo != null)
+            if (ClientContext != null)
             {
                 Server.BroadcastPacket(new BanchoPacket(
-                        new UserQuit { UserID = (int)ClientInfo?.User.UserID! })
+                        new UserQuit { UserID = (int)ClientContext?.User.UserID! })
                     );
                 
-                Server.AuthenticatedClients.TryRemove(ClientInfo!.User.UserID!, ClientInfo!.User.Username, out _);
+                Server.AuthenticatedClients.TryRemove(ClientContext!.User.UserID!, ClientContext!.User.Username, out _);
 #if DEBUG
-                Console.WriteLine(ClientInfo?.User.Username + " disconnected.");          
+                Console.WriteLine(ClientContext?.User.Username + " disconnected.");          
 #endif
             }
             
-            Server.Clients.Remove(_uuid, out _);
+            Server.Clients.TryRemove(_uuid, out _);
         }
 
         /// <summary>
@@ -288,7 +306,5 @@ namespace Oldsu.Bancho
 
             return (geoLoc.Lat, geoLoc.Lon);
         }
-
-
     }
 }
