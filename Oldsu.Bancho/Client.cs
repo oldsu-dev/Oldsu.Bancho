@@ -17,7 +17,7 @@ using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Types;
 using osuserver2012.Enums;
-
+using SendMessage = Oldsu.Bancho.Packet.Shared.Out.SendMessage;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
@@ -173,6 +173,19 @@ namespace Oldsu.Bancho
                     Server.BroadcastPacket(new BanchoPacket( 
                             new SetPresence { ClientInfo = ClientInfo })
                     );
+
+                    await SendPacket(new BanchoPacket(
+                        new JoinChannel { ChannelName = "#osu" }
+                    ));
+                    
+                    await SendPacket(new BanchoPacket(
+                        new SendMessage
+                        {
+                            Sender = "ouigfdbnougfdbofd",
+                            Contents = "HELLO from the server.",
+                            Target = "#osu"
+                        }
+                    ));
                     
                     break;
                 
