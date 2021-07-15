@@ -8,7 +8,7 @@
         {
             var packet = new Packet.Out.Generic.SendFrameBundle
             {
-                Frames = Frames
+                Data = Frames
             };
 
             return packet;
