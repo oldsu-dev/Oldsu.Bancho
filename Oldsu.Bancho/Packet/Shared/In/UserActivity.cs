@@ -15,10 +15,10 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public async Task Handle(Client client)
         {
-            client.ClientInfo!.Activity = this;
+            client.ClientContext!.Activity = this;
             
             Server.BroadcastPacket(new BanchoPacket( 
-                new StatusUpdate { ClientInfo = client.ClientInfo, Completeness = Completeness.Online } )
+                new StatusUpdate { ClientInfo = client.ClientContext, Completeness = Completeness.Online } )
             );
         }
     }
