@@ -18,6 +18,7 @@ using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Types;
 using osuserver2012.Enums;
+using FrameBundle = Oldsu.Bancho.Packet.Shared.Out.FrameBundle;
 using JoinChannel = Oldsu.Bancho.Packet.Shared.Out.JoinChannel;
 using Login = Oldsu.Bancho.Packet.Shared.Out.Login;
 using SendMessage = Oldsu.Bancho.Packet.Shared.Out.SendMessage;
@@ -50,13 +51,14 @@ namespace Oldsu.Bancho
             throw new NotImplementedException();
         }
 
-        public void BroadcastFrames()
+        public void BroadcastFrames(FrameBundle frameBundlePacket)
         {
             if (Spectators == null)
                 return;
             
             foreach (var spectator in Spectators.Values)
             {
+                _ = spectator.SendPacket(new BanchoPacket(frameBundlePacket));
             }
         }
     }
@@ -193,14 +195,13 @@ namespace Oldsu.Bancho
                     await SendPacket(new BanchoPacket(
                         new Login { LoginStatus = (int)user.UserID }
                     ));
-                    
-                    using (var clients = Server.AuthenticatedClients.Values)
-                        foreach (var c in clients)
-                        {
-                            await SendPacket(new BanchoPacket(
-                                new SetPresence { ClientInfo = c.ClientContext! })
-                            );   
-                        }
+
+                    foreach (var c in Server.AuthenticatedClients.Values)
+                    {
+                        await SendPacket(new BanchoPacket(
+                            new SetPresence { ClientInfo = c.ClientContext! })
+                        );   
+                    }
 
                     Server.BroadcastPacket(new BanchoPacket( 
                             new SetPresence { ClientInfo = ClientContext })
