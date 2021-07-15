@@ -7,28 +7,6 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 {
-    public enum BanchoPacketType
-    {
-        In,
-        Out
-    }
-
-    public class BanchoPacketAttribute : System.Attribute
-    {
-        public ushort Id { get; }
-
-        public Version Version { get; }
-        
-        public BanchoPacketType Type { get; }
-        
-        public BanchoPacketAttribute(ushort id, Version version, BanchoPacketType type)
-        {
-            Id = id;
-            Version = version;
-            Type = type;
-        }
-    }
-    
     public class BanchoPacket
     {
         private readonly ConcurrentDictionary<Version, byte[]> _cachedData = new();
@@ -39,7 +17,7 @@ namespace Oldsu.Bancho
             _payload = payload;
         }
 
-        private byte[] GetDataByVersion(Version version)
+        private byte[] SerializeDataByVersion(Version version)
         {
             object? packet;
 
@@ -50,9 +28,8 @@ namespace Oldsu.Bancho
                 packet = version switch
                 {
                     Version.B394A => (_payload as Into<IB394APacketOut>)?.Into(),
-                    
                     Version.B904 => (_payload as Into<IB904PacketOut>)?.Into(),
-                
+                    
                     Version.NotApplicable =>
                         throw new InvalidOperationException("This version is not applicable"),
                 
@@ -64,6 +41,6 @@ namespace Oldsu.Bancho
         }
 
         public byte[] GetDataByVersion(Version version, bool cache = true) =>
-            !cache ? GetDataByVersion(version) : _cachedData.GetOrAdd(version, GetDataByVersion);
+            !cache ? SerializeDataByVersion(version) : _cachedData.GetOrAdd(version, SerializeDataByVersion);
     }
 }
