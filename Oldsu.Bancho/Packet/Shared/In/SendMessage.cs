@@ -11,7 +11,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
         {
             Server.BroadcastPacket(new BanchoPacket(new Out.SendMessage
             {
-                Sender = client.ClientInfo!.User.Username,
+                Sender = client.ClientContext!.User.Username,
                 Contents = Contents,
                 Target = Target
             }));

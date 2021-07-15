@@ -4,7 +4,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
 {
     public struct StatusUpdate : ISharedPacketOut, Into<IB394APacketOut>, Into<IB904PacketOut>
     {
-        public ClientInfo ClientInfo { get; init; }
+        public ClientContext ClientInfo { get; init; }
         public Completeness Completeness { get; init; }
 
         IB394APacketOut Into<IB394APacketOut>.Into()

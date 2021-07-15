@@ -58,7 +58,7 @@ namespace Oldsu.Bancho
         /// <param name="id">Id of client to avoid</param>
         public static void BroadcastPacketToOthers(BanchoPacket packet, uint id)
         {
-            foreach (var c in AuthenticatedClients.Values.Where(u => u.ClientInfo.User.UserID != id))
+            foreach (var c in AuthenticatedClients.Values.Where(u => u.ClientContext!.User.UserID != id))
             {
                 _ = c.SendPacket(packet);
             }
