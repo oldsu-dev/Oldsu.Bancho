@@ -13,23 +13,54 @@ using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Out.B904;
-using Oldsu.Bancho.Packet.Shared;
+using Oldsu.Bancho.Packet.Out.Generic;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Enums;
 using Oldsu.Types;
 using osuserver2012.Enums;
-
+using FrameBundle = Oldsu.Bancho.Packet.Shared.Out.FrameBundle;
+using JoinChannel = Oldsu.Bancho.Packet.Shared.Out.JoinChannel;
+using Login = Oldsu.Bancho.Packet.Shared.Out.Login;
+using SendMessage = Oldsu.Bancho.Packet.Shared.Out.SendMessage;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 { 
-    public class ClientInfo
+    public class ClientContext
     {
         public User User;
         public Stats? Stats;
         public UserActivity Activity;
-        public Presence Presence;    
+        public Presence Presence;
+
+        public SpectatorContext SpectatorContext;
+    }
+    
+    public class SpectatorContext
+    {
+        public Client? Host { get; set; }
+        private ConcurrentDictionary<uint, Client>? Spectators { get; set; }
+
+        public void StopSpecating()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void StartSpectating()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void BroadcastFrames(FrameBundle frameBundlePacket)
+        {
+            if (Spectators == null)
+                return;
+            
+            foreach (var spectator in Spectators.Values)
+            {
+                _ = spectator.SendPacket(new BanchoPacket(frameBundlePacket));
+            }
+        }
     }
     
     /// <summary>
@@ -37,7 +68,7 @@ namespace Oldsu.Bancho
     /// </summary>
     public class Client
     {
-        public ClientInfo? ClientInfo { get; private set; }
+        public ClientContext? ClientContext { get; private set; }
 
         /// <summary>
         ///     Key-Value dictionary of all clients.
@@ -100,7 +131,7 @@ namespace Oldsu.Bancho
 
         private async void HandleDataAsync(byte[] data)
         {
-            if (ClientInfo == null)
+            if (ClientContext == null)
             {
                 Disconnect();
                 return;
@@ -138,15 +169,15 @@ namespace Oldsu.Bancho
                 case LoginResult.AuthenticationSuccessful:
                     var db = new Database();
 
-                    Console.WriteLine("{0} connected.", user.Username);
+                    Console.WriteLine("{0} connected.", user!.Username);
                     
-                    this.ClientInfo = new ClientInfo
+                    ClientContext = new ClientContext
                     {
                         User = user,
                         Activity = new UserActivity(),
                         Presence = new Presence
                         {
-                            Privilege = user!.Privileges,
+                            Privilege = user.Privileges,
                             UtcOffset = 0,
                             Country = 0,
                             Longitude = x,
@@ -159,22 +190,35 @@ namespace Oldsu.Bancho
                     
                     Version = version;
                     
-                    Server.AuthenticatedClients.TryAdd(user!.UserID, this);
+                    Server.AuthenticatedClients.TryAdd(user.UserID, user.Username, this);
 
                     await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)user!.UserID }
+                        new Login { LoginStatus = (int)user.UserID }
                     ));
 
                     foreach (var c in Server.AuthenticatedClients.Values)
                     {
                         await SendPacket(new BanchoPacket(
-                            new SetPresence { ClientInfo = c.ClientInfo! })
+                            new SetPresence { ClientInfo = c.ClientContext! })
                         );   
                     }
 
                     Server.BroadcastPacket(new BanchoPacket( 
-                            new SetPresence { ClientInfo = this.ClientInfo })
+                            new SetPresence { ClientInfo = ClientContext })
                     );
+
+                    await SendPacket(new BanchoPacket(
+                        new JoinChannel { ChannelName = "#osu" }
+                    ));
+                    
+                    await SendPacket(new BanchoPacket(
+                        new SendMessage
+                        {
+                            Sender = "ouigfdbnougfdbofd",
+                            Contents = "HELLO from the server.",
+                            Target = "#osu"
+                        }
+                    ));
                     
                     break;
                 
@@ -193,19 +237,19 @@ namespace Oldsu.Bancho
             _webSocketConnection!.OnBinary -= HandleDataAsync;
             _webSocketConnection!.OnClose -= HandleClose;
 
-            if (ClientInfo != null)
+            if (ClientContext != null)
             {
                 Server.BroadcastPacket(new BanchoPacket(
-                        new UserQuit { UserID = (int)ClientInfo?.User.UserID! })
+                        new UserQuit { UserID = (int)ClientContext?.User.UserID! })
                     );
                 
-                Server.AuthenticatedClients.TryRemove(ClientInfo!.User.UserID!, out _);
+                Server.AuthenticatedClients.TryRemove(ClientContext!.User.UserID!, ClientContext!.User.Username, out _);
 #if DEBUG
-                Console.WriteLine(ClientInfo?.User.Username + " disconnected.");          
+                Console.WriteLine(ClientContext?.User.Username + " disconnected.");          
 #endif
             }
             
-            Server.Clients.Remove(_uuid, out var _);
+            Server.Clients.TryRemove(_uuid, out _);
         }
 
         /// <summary>
@@ -219,7 +263,7 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="authenticationString"> Authentication string seperated by \n </param>
         /// <returns> Result of the authentication. the User and Version variables get returned, if the authentication was successful </returns>
-        private static async Task<(LoginResult, User, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
+        private static async Task<(LoginResult, User?, Version)> AuthenticateAsync(IReadOnlyList<string> authenticationString)
         {
             var (loginUsername, loginPassword, info) =
                 (authenticationString[0], authenticationString[1], authenticationString[2]);
@@ -277,7 +321,5 @@ namespace Oldsu.Bancho
 
             return (geoLoc.Lat, geoLoc.Lon);
         }
-
-
     }
 }
