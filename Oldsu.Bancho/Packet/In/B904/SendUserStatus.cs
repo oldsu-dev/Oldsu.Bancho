@@ -18,7 +18,7 @@ namespace Oldsu.Bancho.Packet.In.B904
             userActivity.GameMode = bStatusUpdate.BeatmapUpdate?.Gamemode ?? 0;
             userActivity.MapID = bStatusUpdate.BeatmapUpdate?.MapId ?? 0;
             userActivity.Map = bStatusUpdate.BeatmapUpdate?.Map ?? "";
-            userActivity.MapSHA256 = bStatusUpdate.BeatmapUpdate?.Map ?? "";
+            userActivity.MapSHA256 = bStatusUpdate.BeatmapUpdate?.MapSha256 ?? "";
             userActivity.Mods = bStatusUpdate.BeatmapUpdate?.Mods ?? 0;
             
             return userActivity;
