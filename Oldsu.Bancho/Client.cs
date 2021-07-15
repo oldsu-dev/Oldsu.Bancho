@@ -13,11 +13,11 @@ using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Out.B904;
-using Oldsu.Bancho.Packet.Out.Generic;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Types;
 using osuserver2012.Enums;
+
 using FrameBundle = Oldsu.Bancho.Packet.Shared.Out.FrameBundle;
 using JoinChannel = Oldsu.Bancho.Packet.Shared.Out.JoinChannel;
 using Login = Oldsu.Bancho.Packet.Shared.Out.Login;
@@ -38,17 +38,34 @@ namespace Oldsu.Bancho
     
     public class SpectatorContext
     {
-        public Client? Host { get; set; }
+        internal Client Self { get; set; }
+
+        public Client? Host { get; private set; }
         private ConcurrentDictionary<uint, Client>? Spectators { get; set; }
 
         public void StopSpecating()
         {
-            throw new NotImplementedException();
+            
         }
 
-        public void StartSpectating(Client client)
+        public void StartSpectating(Client host)
         {
-            throw new NotImplementedException();
+            lock (host.ClientContext!.SpectatorContext)
+            {
+                if (host.ClientContext.SpectatorContext.Spectators == null)
+                    host.ClientContext.SpectatorContext.Spectators = new();
+                
+                _ = host.SendPacket(new BanchoPacket(new HostSpectatorJoined
+                {
+                    UserID = (int)Self.ClientContext!.User.UserID,
+                }));
+
+                host.ClientContext.SpectatorContext.Spectators.TryAdd(Self.ClientContext!.User.UserID, Self);
+
+                Host = host;
+                
+                Console.WriteLine($"Started spectating {host}");
+            }
         }
 
         public void BroadcastFrames(FrameBundle frameBundlePacket)
@@ -185,7 +202,11 @@ namespace Oldsu.Bancho
                         },
                         Stats = await db.Stats
                             .Where(s => s.UserID == user.UserID)
-                            .FirstAsync()
+                            .FirstAsync(),
+                        SpectatorContext = new SpectatorContext
+                        {
+                            Self = this,
+                        }
                     };
                     
                     Version = version;
