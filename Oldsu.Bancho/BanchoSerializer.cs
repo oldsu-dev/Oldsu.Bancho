@@ -558,7 +558,7 @@ namespace Oldsu.Bancho
                 bw.Write((int)(bw.BaseStream.Length - 7));
             }
 
-            return ms.GetBuffer();
+            return ms.ToArray();
         }
     }
 }
