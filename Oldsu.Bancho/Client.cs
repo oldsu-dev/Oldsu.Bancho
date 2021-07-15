@@ -73,10 +73,12 @@ namespace Oldsu.Bancho
         {
             if (Spectators == null)
                 return;
+
+            var packet = new BanchoPacket(frameBundlePacket);
             
             foreach (var spectator in Spectators.Values)
             {
-                _ = spectator.SendPacket(new BanchoPacket(frameBundlePacket));
+                _ = spectator.SendPacket(packet);
             }
         }
     }
