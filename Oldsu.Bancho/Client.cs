@@ -13,10 +13,14 @@ using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Out.B904;
+using Oldsu.Bancho.Packet.Out.Generic;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Types;
 using osuserver2012.Enums;
+using FrameBundle = Oldsu.Bancho.Packet.Shared.Out.FrameBundle;
+using JoinChannel = Oldsu.Bancho.Packet.Shared.Out.JoinChannel;
+using Login = Oldsu.Bancho.Packet.Shared.Out.Login;
 using SendMessage = Oldsu.Bancho.Packet.Shared.Out.SendMessage;
 using Version = Oldsu.Enums.Version;
 
@@ -27,13 +31,15 @@ namespace Oldsu.Bancho
         public User User;
         public Stats? Stats;
         public UserActivity Activity;
-        public Presence Presence;    
+        public Presence Presence;
+
+        public SpectatorContext SpectatorContext;
     }
     
     public class SpectatorContext
     {
         public Client? Host { get; set; }
-        public ConcurrentDictionary<uint, Client>? Spectators { get; set; }
+        private ConcurrentDictionary<uint, Client>? Spectators { get; set; }
 
         public void StopSpecating()
         {
@@ -44,6 +50,17 @@ namespace Oldsu.Bancho
         {
             throw new NotImplementedException();
         }
+
+        public void BroadcastFrames(FrameBundle frameBundlePacket)
+        {
+            if (Spectators == null)
+                return;
+            
+            foreach (var spectator in Spectators.Values)
+            {
+                _ = spectator.SendPacket(new BanchoPacket(frameBundlePacket));
+            }
+        }
     }
     
     /// <summary>
@@ -52,8 +69,6 @@ namespace Oldsu.Bancho
     public class Client
     {
         public ClientContext? ClientContext { get; private set; }
-
-        public SpectatorContext SpectatorContext { get; set; }
 
         /// <summary>
         ///     Key-Value dictionary of all clients.
