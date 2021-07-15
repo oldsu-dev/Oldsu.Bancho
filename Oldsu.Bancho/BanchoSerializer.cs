@@ -12,13 +12,41 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 {
+    public enum BanchoPacketType
+    {
+        In,
+        Out
+    }
+
+    public class BanchoPacketAttribute : System.Attribute
+    {
+        public ushort Id { get; }
+
+        public Version Version { get; }
+        
+        public BanchoPacketType Type { get; }
+
+        public BanchoPacketAttribute(ushort id, Version version, BanchoPacketType type)
+        {
+            Id = id;
+            Version = version;
+            Type = type;
+        }
+    }
+    
     public class BanchoSerializableAttribute : System.Attribute
     {
         public bool Optional { get; }
-        public BanchoSerializableAttribute(bool optional = false)
+        
+        public BanchoSerializableAttribute(bool optional = false, bool isPacketDataStorage = false)
         {
             Optional = optional;
         }
+    }
+
+    public class BanchoBuffer
+    {
+        public byte[] Data { get; set; }
     }
     
     public static class BanchoSerializer
@@ -338,7 +366,7 @@ namespace Oldsu.Bancho
                 _type = GetMemberType(info);
             }
         }
-        
+
         #endregion
 
         private static Type GetMemberType(MemberInfo info)
@@ -378,9 +406,7 @@ namespace Oldsu.Bancho
                     return (attribute.Id, attribute.Version);
                 });
 
-        private static readonly ConcurrentDictionary<Type, BanchoPacketAttribute> _packetAttributeCache =
-            new();
-
+        private static readonly ConcurrentDictionary<Type, BanchoPacketAttribute> _packetAttributeCache = new();
         private static readonly ConcurrentDictionary<Type, ImmutableArray<TypeMember>> _memberCache = new();
 
         private static IEnumerable<MemberInfo> GetAllMemberInfo(Type type) =>
@@ -414,11 +440,24 @@ namespace Oldsu.Bancho
         private static ImmutableArray<TypeMember> GetOrAddCachedMembers(Type type) => 
             _memberCache.GetOrAdd(type, GetTypeMembers);
 
-        private static (ushort id, uint length) ReadPacketHeader(BinaryReader br)
+        private static BanchoPacketAttribute GetOrAddCachedPacketAttributes(Type type)
+        {
+            return _packetAttributeCache.GetOrAdd(type, (t) =>
+            {
+                var attrib = t.GetCustomAttribute<BanchoPacketAttribute>();
+
+                if (attrib == null)
+                    throw new ArgumentException("Missing BanchoPacketAttribute.");
+
+                return attrib;
+            });
+        }
+        
+        private static (ushort id, int length) ReadPacketHeader(BinaryReader br)
         {
             var id = br.ReadUInt16();
             var _ = br.ReadBoolean();
-            var length = br.ReadUInt32();
+            var length = br.ReadInt32();
 
             return (id, length);
         }
@@ -461,17 +500,35 @@ namespace Oldsu.Bancho
             return instance;
         }
 
-        public static object? Deserialize(byte[] data, Version version) 
+        public static object? Deserialize(byte[]? data, Version version)
         {
+            if (data == null)
+                return null;
+            
             using var ms = new MemoryStream(data);
             using var br = new BinaryReader(ms, Encoding.UTF8, leaveOpen: true);
 
-            var (id, _) = ReadPacketHeader(br);
+            var (id, length) = ReadPacketHeader(br);
 
-            if (_inPackets.TryGetValue((id, Version.NotApplicable), out var type))
-                return Read(br, type);
+            Type type;
+
+            if (!_inPackets.TryGetValue((id, Version.NotApplicable), out type!) &&
+                !_inPackets.TryGetValue((id, version), out type!))
+            {
+                return null;
+            }
+
+            object instance;
             
-            return _inPackets.TryGetValue((id, version), out type) ? Read(br, type) : null;
+            if ((type.BaseType ?? type) == typeof(BanchoBuffer))
+            {
+                instance = Activator.CreateInstance(type)!; 
+                ((BanchoBuffer)instance).Data = br.ReadBytes(length);
+            }
+            else
+                instance = Read(br, type);
+
+            return instance;
         }
 
 
@@ -479,28 +536,29 @@ namespace Oldsu.Bancho
         {
             using var ms = new MemoryStream();
             using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
+            Type type = instance.GetType();
 
-            var attrib = _packetAttributeCache.GetOrAdd(instance.GetType(), t =>
-            {
-                var attrib = t.GetCustomAttribute<BanchoPacketAttribute>();
-
-                if (attrib == null)
-                    throw new ArgumentException("Missing BanchoPacketAttribute.");
-
-                return attrib;
-            });
+            var attrib = GetOrAddCachedPacketAttributes(type);
 
             bw.Write(attrib.Id);
             bw.Write((byte)0x0);
-            bw.Write((int)0x0);
 
-            Write(instance, bw);
+            if (instance is BanchoBuffer buffer)
+            {
+                bw.Write(buffer.Data.Length);
+                bw.Write(buffer.Data);
+            }
+            else
+            {
+                bw.Write((int)0x0);
 
-            bw.Seek(3, SeekOrigin.Begin);
+                Write(instance, bw);
 
-            bw.Write((uint)(bw.BaseStream.Length - 7));
-            
-            return ms.ToArray();
+                bw.Seek(3, SeekOrigin.Begin);
+                bw.Write((int)(bw.BaseStream.Length - 7));
+            }
+
+            return ms.GetBuffer();
         }
     }
 }
