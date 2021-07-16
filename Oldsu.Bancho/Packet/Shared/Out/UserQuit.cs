@@ -5,7 +5,7 @@
         public int UserID { get; init; }
         public IGenericPacketOut Into()
         {
-            var packet = new Packet.Out.B904.UserQuit
+            var packet = new Packet.Out.Generic.UserQuit
             {
                 UserID = UserID
             };

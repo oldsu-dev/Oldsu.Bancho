@@ -1,6 +1,6 @@
 ﻿using Oldsu.Enums;
 
-namespace Oldsu.Bancho.Packet.Out.B904
+namespace Oldsu.Bancho.Packet.Out.Generic
 {
     [BanchoPacket(2, Version.NotApplicable, BanchoPacketType.Out)]
     public struct UserQuit : IGenericPacketOut
