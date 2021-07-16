@@ -8,7 +8,7 @@ namespace Oldsu.Bancho.Multiplayer
 {
     public class Lobby
     {
-        public const int MatchesAvailable = 256;
+        public const int MatchesAvailable = 255;
         
         private readonly Dictionary<uint, Client> _clientsInLobby = new();
         private readonly ReaderWriterLockSlim _rwLock = new();
@@ -16,23 +16,29 @@ namespace Oldsu.Bancho.Multiplayer
         public Match?[] Matches { get; private set; } = new Match?[MatchesAvailable];
 
         // ref = pointer so no copy xddddddd
-        public void RegisterMatch(Match match)
+        public bool RegisterMatch(Match match)
         {
+            var registeredMatch = false;
+            
             _rwLock.EnterWriteLock();
 
             try
             {
-                for (int i = 0; i < MatchesAvailable; i++)
+                // todo handle if all matches are used
+                for (byte i = 0; i <= MatchesAvailable; i++)
                     if (Matches[i] == null)
                     {
-                        match.MatchID = (byte)i;
                         Matches[i] = match;
+                        match.MatchID = i;
+                        registeredMatch = true;
                     }
             }
             finally
             {
                 _rwLock.ExitWriteLock();
             }
+
+            return registeredMatch;
         }
         
         public bool DisbandMatch(int id, int clientId)
