@@ -38,7 +38,9 @@ namespace Oldsu.Bancho
     {
         public bool Optional { get; }
         
-        public BanchoSerializableAttribute(bool optional = false, bool isPacketDataStorage = false)
+        public int ArrayElementCount { get; }
+        
+        public BanchoSerializableAttribute(bool optional = false, int arrayElementCount = 0)
         {
             Optional = optional;
         }
@@ -347,23 +349,46 @@ namespace Oldsu.Bancho
         private class ObjectMember : TypeMember
         {
             private Type _type;
+            private BanchoSerializableAttribute _attrib;
 
             public override void ReadFromStream(object? instance, BinaryReader br)
             {
-                SetValueToObject(instance!, Read(br, _type));
+                if (_type.IsArray)
+                {
+                    var array = (Array)Activator.CreateInstance(_type, _attrib.ArrayElementCount)!;
+
+                    for (int i = 0; i < array.Length; i++)
+                        array.SetValue(Read(br, _type), i);
+                    
+                    SetValueToObject(instance!, array);
+                }
+                else
+                    SetValueToObject(instance!, Read(br, _type));
             }
 
             public override void WriteToStream(object? instance, BinaryWriter bw)
             {
                 if (instance == null)
                     return;
-                
-                BanchoSerializer.Write(GetValueFromObject(instance)!, bw);
+
+                if (_type.IsArray)
+                {
+                    var array = (Array)GetValueFromObject(instance)!;
+
+                    if (_attrib.ArrayElementCount != array.Length)
+                        throw new InvalidDataException(
+                            $"Configured array size is {_attrib.ArrayElementCount}, got {array.Length}");
+
+                    for (int i = 0; i < array.Length; i++)
+                        BanchoSerializer.Write(array.GetValue(i)!, bw);
+                } else
+                    BanchoSerializer.Write(GetValueFromObject(instance)!, bw);
             }
 
-            public ObjectMember(MemberInfo info) : base(info)
+            public ObjectMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info)
             {
                 _type = GetMemberType(info);
+                _attrib = attrib;
             }
         }
 
@@ -430,8 +455,8 @@ namespace Oldsu.Bancho
                     "System.String" => new StringMember(memberInfo),
                     "System.Boolean" => new BoolMember(memberInfo),
                     "System.Collections.Generic.List" => new ListMember(memberInfo),
-                    
-                    _ => new ObjectMember(memberInfo)
+
+                    _ => new ObjectMember(memberInfo, memberInfo.GetCustomAttribute<BanchoSerializableAttribute>())
                 })).ToImmutableArray();
             
             return members;
@@ -530,7 +555,6 @@ namespace Oldsu.Bancho
 
             return instance;
         }
-
 
         public static byte[] Serialize(object instance)
         {

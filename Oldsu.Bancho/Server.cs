@@ -49,7 +49,7 @@ namespace Oldsu.Bancho
             using var clients = AuthenticatedClients.Values;
             foreach (var c in clients)
             {
-                _ = c.SendPacket(packet);
+                c.SendPacket(packet);
             }
         }
 
@@ -63,7 +63,7 @@ namespace Oldsu.Bancho
             using var clients = AuthenticatedClients.Values;
             foreach (var c in clients.Where(u => u.ClientContext!.User.UserID != id))
             {
-                _ = c.SendPacket(packet);
+                c.SendPacket(packet);
             }
         }
         
@@ -75,7 +75,7 @@ namespace Oldsu.Bancho
         public static void SendPacketToSpecificUser(BanchoPacket packet, string username)
         {
             if (AuthenticatedClients.TryGetValue(username, out var user))
-                _ = user.SendPacket(packet);
+                user.SendPacket(packet);
         }
 
         /// <summary>

@@ -9,7 +9,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(Client client)
         {
-            await client.SendPacket(new BanchoPacket(
+            await client.SendPacketAsync(new BanchoPacket(
                 new StatusUpdate { ClientInfo = client.ClientContext!, Completeness = Completeness.Self })
             ); 
         }
