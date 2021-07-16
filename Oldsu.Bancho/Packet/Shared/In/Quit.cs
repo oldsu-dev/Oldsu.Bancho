@@ -1,5 +1,5 @@
 ﻿using System.Threading.Tasks;
-using Oldsu.Bancho.Packet.Out.B904;
+using Oldsu.Bancho.Packet.Shared.Out;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
