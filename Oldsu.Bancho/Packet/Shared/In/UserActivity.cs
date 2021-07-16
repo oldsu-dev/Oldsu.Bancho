@@ -17,7 +17,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
         {
             client.ClientContext!.Activity = this;
             
-            Server.BroadcastPacket(new BanchoPacket( 
+            client.Server.BroadcastPacket(new BanchoPacket( 
                 new StatusUpdate { ClientInfo = client.ClientContext, Completeness = Completeness.Online } )
             );
         }

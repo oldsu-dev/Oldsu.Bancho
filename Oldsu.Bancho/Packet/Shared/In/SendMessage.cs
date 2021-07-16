@@ -9,7 +9,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
         
         public async Task Handle(Client client)
         {
-            Server.BroadcastPacket(new BanchoPacket(new Out.SendMessage
+            client.Server.BroadcastPacket(new BanchoPacket(new Out.SendMessage
             {
                 Sender = client.ClientContext!.User.Username,
                 Contents = Contents,
