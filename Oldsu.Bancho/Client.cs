@@ -13,18 +13,18 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
+using Oldsu.Bancho.Packet.Out.Generic;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Enums;
 using Oldsu.Types;
 using osuserver2012.Enums;
 
 using BanchoPrivileges = Oldsu.Bancho.Packet.Shared.Out.BanchoPrivileges;
 using FrameBundle = Oldsu.Bancho.Packet.Shared.Out.FrameBundle;
 using HostSpectatorJoined = Oldsu.Bancho.Packet.Shared.Out.HostSpectatorJoined;
+using HostSpectatorLeft = Oldsu.Bancho.Packet.Shared.Out.HostSpectatorLeft;
 using JoinChannel = Oldsu.Bancho.Packet.Shared.Out.JoinChannel;
 using Login = Oldsu.Bancho.Packet.Shared.Out.Login;
-using SendMessage = Oldsu.Bancho.Packet.Shared.Out.SendMessage;
 using UserQuit = Oldsu.Bancho.Packet.Shared.Out.UserQuit;
 using Version = Oldsu.Enums.Version;
 
@@ -42,20 +42,45 @@ namespace Oldsu.Bancho
 
     public class SpectatorContext
     {
-        internal Client Self { get; set; }
-        
+        public Client Self { get; set; }
         public Client? Host { get; private set; }
-        private Dictionary<uint, Client> Spectators { get; set; } = new();
+        
+        private Dictionary<uint, Client> Spectators { get; } = new();
         private ReaderWriterLockSlim _rwLock = new();
 
         public void StopSpecating()
         {
-            throw new NotImplementedException();
+            Host?.ClientContext.SpectatorContext._rwLock.EnterWriteLock();
+            
+            if (Host == null)
+                return;
+
+            var hostSpectatorContext = Host.ClientContext.SpectatorContext;
+
+            try
+            {
+                hostSpectatorContext.Spectators.Remove(Self.ClientContext!.User.UserID);
+
+                Host.SendPacket(new BanchoPacket(new HostSpectatorLeft
+                {
+                    UserID = (int)Self.ClientContext!.User.UserID
+                }));
+
+                Host = null;
+
+                Console.WriteLine($"Stopped spectating.");
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
         }
 
         public void StartSpectating(Client host)
         {
-            _rwLock.EnterWriteLock();
+            var hostSpectatorContext = host.ClientContext.SpectatorContext;
+            hostSpectatorContext._rwLock.EnterWriteLock();
+            
             try
             {
                 host.SendPacket(new BanchoPacket(new HostSpectatorJoined
@@ -71,7 +96,7 @@ namespace Oldsu.Bancho
             }
             finally
             {
-                _rwLock.ExitWriteLock();
+                hostSpectatorContext._rwLock.ExitWriteLock();
             }
         }
 
