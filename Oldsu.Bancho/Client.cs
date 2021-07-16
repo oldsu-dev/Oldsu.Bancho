@@ -98,6 +98,8 @@ namespace Oldsu.Bancho
     /// </summary>
     public class Client
     {
+        public Server Server { get; init; }
+
         public ClientContext? ClientContext { get; private set; }
 
         private Guid _uuid;
@@ -109,6 +111,11 @@ namespace Oldsu.Bancho
         public DateTime PingTimeoutWindow { get; private set; } = DateTime.MinValue;
         
         public Version Version { get; private set; }= Version.NotApplicable;
+
+        public Client(Server server)
+        {
+            Server = server;
+        }
 
         public void ResetPing(int nextPeriod)
         { 
@@ -247,6 +254,9 @@ namespace Oldsu.Bancho
 
                     // TODO, send correct channel packets saved for user.
 
+                    Server.BroadcastPacket(new BanchoPacket( 
+                        new JoinChannel { ChannelName = "#osu" }));
+                    
                     break;
                 
                 default:
