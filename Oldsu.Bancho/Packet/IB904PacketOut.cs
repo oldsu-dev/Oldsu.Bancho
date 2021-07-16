@@ -1,4 +1,4 @@
 ﻿namespace Oldsu.Bancho.Packet
 {
-    public class IB904PacketOut { }
+    public interface IB904PacketOut { }
 }
