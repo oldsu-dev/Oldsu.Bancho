@@ -1,4 +1,4 @@
-﻿namespace Oldsu.Bancho.Enums
+﻿namespace Oldsu.Bancho.Multiplayer.Enums
 {
     public enum MatchTeamTypes
     {

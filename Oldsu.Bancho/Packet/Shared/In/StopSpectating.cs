@@ -6,7 +6,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(Client client)
         {
-            client.ClientContext!.SpectatorContext.StopSpecating();
+            client.ClientContext!.SpectatorContext.StopSpectating();
         }
     }
 }

@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Oldsu.Enums
+namespace Oldsu.Multiplayer.Enums
 {
     [Flags]
     public enum SlotStatus : byte
