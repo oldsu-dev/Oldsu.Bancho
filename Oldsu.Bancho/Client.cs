@@ -312,6 +312,8 @@ namespace Oldsu.Bancho
                     new UserQuit { UserID = (int)ClientContext?.User.UserID! })
                 );
 
+                ClientContext.SpectatorContext.StopSpecating();
+                
                 Server.AuthenticatedClients.TryRemove(ClientContext!.User.UserID!, ClientContext!.User.Username, out _);
 #if DEBUG
                 Console.WriteLine(ClientContext?.User.Username + " disconnected.");
