@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
 using MaxMind.Db;
@@ -38,13 +39,14 @@ namespace Oldsu.Bancho
 
         public SpectatorContext SpectatorContext;
     }
-    
+
     public class SpectatorContext
     {
         internal Client Self { get; set; }
-
+        
         public Client? Host { get; private set; }
-        private ConcurrentDictionary<uint, Client>? Spectators { get; set; }
+        private Dictionary<uint, Client> Spectators { get; set; } = new();
+        private ReaderWriterLockSlim _rwLock = new();
 
         public void StopSpecating()
         {
@@ -53,34 +55,40 @@ namespace Oldsu.Bancho
 
         public void StartSpectating(Client host)
         {
-            lock (host.ClientContext!.SpectatorContext)
+            _rwLock.EnterWriteLock();
+            try
             {
-                if (host.ClientContext.SpectatorContext.Spectators == null)
-                    host.ClientContext.SpectatorContext.Spectators = new();
-                
-                _ = host.SendPacket(new BanchoPacket(new HostSpectatorJoined
+                host.SendPacket(new BanchoPacket(new HostSpectatorJoined
                 {
-                    UserID = (int)Self.ClientContext!.User.UserID,
+                    UserID = (int) Self.ClientContext!.User.UserID,
                 }));
 
-                host.ClientContext.SpectatorContext.Spectators.TryAdd(Self.ClientContext!.User.UserID, Self);
+                host.ClientContext!.SpectatorContext.Spectators.TryAdd(Self.ClientContext!.User.UserID, Self);
 
                 Host = host;
-                
+
                 Console.WriteLine($"Started spectating {host.ClientContext.User.UserID}");
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
             }
         }
 
         public void BroadcastFrames(FrameBundle frameBundlePacket)
         {
-            if (Spectators == null)
-                return;
+            _rwLock.EnterReadLock();
 
-            var packet = new BanchoPacket(frameBundlePacket);
-            
-            foreach (var spectator in Spectators.Values)
+            try
             {
-                _ = spectator.SendPacket(packet);
+                var packet = new BanchoPacket(frameBundlePacket);
+
+                foreach (var spectator in Spectators.Values)
+                    spectator.SendPacket(packet);
+            }
+            finally
+            {
+                _rwLock.ExitReadLock();
             }
         }
     }
@@ -92,17 +100,12 @@ namespace Oldsu.Bancho
     {
         public ClientContext? ClientContext { get; private set; }
 
-        /// <summary>
-        ///     Key-Value dictionary of all clients.
-        ///     TODO: Implement a multiple key-value dictionary.
-        /// </summary>
-
         private Guid _uuid;
         private IWebSocketConnection? _webSocketConnection;
-
+        
         public const int AuthTimeoutPeriod = 10_000;
         public const int PingTimeoutPeriod = 35_000;
-
+        
         public DateTime PingTimeoutWindow { get; private set; } = DateTime.MinValue;
         
         public Version Version { get; private set; }= Version.NotApplicable;
@@ -126,19 +129,25 @@ namespace Oldsu.Bancho
             ResetPing(AuthTimeoutPeriod);
         }
 
+        private SemaphoreSlim _sendPacketSemaphore = new(1, 1);
+
+        public void SendPacket(BanchoPacket packet) => Task.Run(() => SendPacketAsync(packet));
+        
         /// <summary>
         ///     Sends packet to client.
         /// </summary>
         /// <param name="packet"> Packet meant to be sent. </param>
-        public async Task SendPacket(BanchoPacket packet)
+        public async Task SendPacketAsync(BanchoPacket packet)
         {
-            if (!_webSocketConnection!.IsAvailable)
-                return;
-            
+            await _sendPacketSemaphore.WaitAsync();
+
             try
             {
+                if (!_webSocketConnection!.IsAvailable)
+                    return;
+
                 var data = packet.GetDataByVersion(this.Version);
-                
+
                 if (data.Length == 0)
                     return;
 
@@ -148,6 +157,10 @@ namespace Oldsu.Bancho
             {
                 Debug.WriteLine(exception);
                 //Disconnect();
+            }
+            finally
+            {
+                _sendPacketSemaphore.Release();
             }
         }
 
@@ -216,17 +229,17 @@ namespace Oldsu.Bancho
                     
                     Version = version;
 
-                    await SendPacket(new BanchoPacket(
+                    await SendPacketAsync(new BanchoPacket(
                         new Login { LoginStatus = (int)user.UserID }));
 
-                    await SendPacket(new BanchoPacket(
+                    await SendPacketAsync(new BanchoPacket(
                         new BanchoPrivileges { Privileges = ClientContext.Presence.Privilege }));
                     
                     Server.AuthenticatedClients.TryAdd(user.UserID, user.Username, this);
 
                     using (var clients = Server.AuthenticatedClients.Values)
                         foreach (var c in clients)
-                            await SendPacket(new BanchoPacket(
+                            await SendPacketAsync(new BanchoPacket(
                                 new SetPresence { ClientInfo = c.ClientContext! }));
 
                     Server.BroadcastPacket(new BanchoPacket( 
@@ -237,7 +250,7 @@ namespace Oldsu.Bancho
                     break;
                 
                 default:
-                    await SendPacket(new BanchoPacket(
+                    await SendPacketAsync(new BanchoPacket(
                         new Login { LoginStatus = (int)loginStatus }));
                     
                     break;

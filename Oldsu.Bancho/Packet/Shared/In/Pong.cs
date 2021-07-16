@@ -7,7 +7,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(Client client)
         {
-            await client.SendPacket(new BanchoPacket(new Ping()));
+            await client.SendPacketAsync(new BanchoPacket(new Ping()));
         }
     }
 }
