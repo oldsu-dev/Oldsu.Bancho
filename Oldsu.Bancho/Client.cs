@@ -72,7 +72,7 @@ namespace Oldsu.Bancho
             }
             finally
             {
-                _rwLock.ExitWriteLock();
+                hostSpectatorContext._rwLock.ExitWriteLock(); 
             }
         }
 
@@ -297,27 +297,31 @@ namespace Oldsu.Bancho
             _webSocketConnection!.OnMessage -= HandleLoginAsync;
             _webSocketConnection!.OnBinary -= HandleDataAsync;
             _webSocketConnection!.OnClose -= HandleClose;
-
-            if (ClientContext != null)
-            {
-                Server.BroadcastPacket(new BanchoPacket(
-                        new UserQuit { UserID = (int)ClientContext?.User.UserID! })
-                    );
-                
-                Server.AuthenticatedClients.TryRemove(ClientContext!.User.UserID!, ClientContext!.User.Username, out _);
-#if DEBUG
-                Console.WriteLine(ClientContext?.User.Username + " disconnected.");          
-#endif
-            }
             
-            Server.Clients.TryRemove(_uuid, out _);
+            Disconnect();
         }
 
         /// <summary>
         ///     Disconnects client from the server.
         /// </summary>
-        public void Disconnect() => 
-            _webSocketConnection?.Close();
+        public void Disconnect()
+        {
+            if (ClientContext != null)
+            {
+                Server.BroadcastPacket(new BanchoPacket(
+                    new UserQuit { UserID = (int)ClientContext?.User.UserID! })
+                );
+
+                Server.AuthenticatedClients.TryRemove(ClientContext!.User.UserID!, ClientContext!.User.Username, out _);
+#if DEBUG
+                Console.WriteLine(ClientContext?.User.Username + " disconnected.");
+#endif
+            }
+
+            Server.Clients.TryRemove(_uuid, out _);
+            
+            _webSocketConnection.Close();
+        }
 
         /// <summary>
         ///     Returns the authentication result of the user.
