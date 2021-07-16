@@ -8,7 +8,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
         
         public async Task Handle(Client client)
         {
-            if (Server.AuthenticatedClients.TryGetValue((uint)UserID, out var host))
+            if (client.Server.AuthenticatedClients.TryGetValue((uint)UserID, out var host))
                 client.ClientContext!.SpectatorContext.StartSpectating(host);
         }
     }
