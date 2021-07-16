@@ -12,17 +12,19 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
-using Oldsu.Bancho.Packet.Out.B904;
-using Oldsu.Bancho.Packet.Out.Generic;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Enums;
 using Oldsu.Types;
 using osuserver2012.Enums;
+
+using BanchoPrivileges = Oldsu.Bancho.Packet.Shared.Out.BanchoPrivileges;
 using FrameBundle = Oldsu.Bancho.Packet.Shared.Out.FrameBundle;
 using HostSpectatorJoined = Oldsu.Bancho.Packet.Shared.Out.HostSpectatorJoined;
 using JoinChannel = Oldsu.Bancho.Packet.Shared.Out.JoinChannel;
 using Login = Oldsu.Bancho.Packet.Shared.Out.Login;
 using SendMessage = Oldsu.Bancho.Packet.Shared.Out.SendMessage;
+using UserQuit = Oldsu.Bancho.Packet.Shared.Out.UserQuit;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
@@ -46,7 +48,7 @@ namespace Oldsu.Bancho
 
         public void StopSpecating()
         {
-            
+            throw new NotImplementedException();
         }
 
         public void StartSpectating(Client host)
@@ -213,44 +215,30 @@ namespace Oldsu.Bancho
                     };
                     
                     Version = version;
+
+                    await SendPacket(new BanchoPacket(
+                        new Login { LoginStatus = (int)user.UserID }));
+
+                    await SendPacket(new BanchoPacket(
+                        new BanchoPrivileges { Privileges = ClientContext.Presence.Privilege }));
                     
                     Server.AuthenticatedClients.TryAdd(user.UserID, user.Username, this);
 
-                    await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)user.UserID }
-                    ));
-
                     using (var clients = Server.AuthenticatedClients.Values)
                         foreach (var c in clients)
-                        {
                             await SendPacket(new BanchoPacket(
-                                new SetPresence { ClientInfo = c.ClientContext! })
-                            );   
-                        }
+                                new SetPresence { ClientInfo = c.ClientContext! }));
 
                     Server.BroadcastPacket(new BanchoPacket( 
-                            new SetPresence { ClientInfo = ClientContext })
-                    );
+                        new SetPresence { ClientInfo = ClientContext }));
 
-                    await SendPacket(new BanchoPacket(
-                        new JoinChannel { ChannelName = "#osu" }
-                    ));
-                    
-                    await SendPacket(new BanchoPacket(
-                        new SendMessage
-                        {
-                            Sender = "ouigfdbnougfdbofd",
-                            Contents = "HELLO from the server.",
-                            Target = "#osu"
-                        }
-                    ));
-                    
+                    // TODO, send correct channel packets saved for user.
+
                     break;
                 
                 default:
                     await SendPacket(new BanchoPacket(
-                        new Login { LoginStatus = (int)loginStatus })
-                    );
+                        new Login { LoginStatus = (int)loginStatus }));
                     
                     break;
             }
