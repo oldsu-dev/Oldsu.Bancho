@@ -1,4 +1,4 @@
-﻿using Oldsu.Bancho.Objects.B904;
+﻿using Oldsu.Bancho.Multiplayer.Objects.B904;
 using Oldsu.Enums;
 
 namespace Oldsu.Bancho.Packet.In.B904

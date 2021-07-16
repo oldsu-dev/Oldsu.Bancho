@@ -48,7 +48,7 @@ namespace Oldsu.Bancho
         private Dictionary<uint, Client> Spectators { get; } = new();
         private ReaderWriterLockSlim _rwLock = new();
 
-        public void StopSpecating()
+        public void StopSpectating()
         {
             Host?.ClientContext.SpectatorContext._rwLock.EnterWriteLock();
             
@@ -91,7 +91,7 @@ namespace Oldsu.Bancho
                 host.ClientContext!.SpectatorContext.Spectators.TryAdd(Self.ClientContext!.User.UserID, Self);
 
                 Host = host;
-
+                
                 Console.WriteLine($"Started spectating {host.ClientContext.User.UserID}");
             }
             finally
@@ -312,7 +312,7 @@ namespace Oldsu.Bancho
                     new UserQuit { UserID = (int)ClientContext?.User.UserID! })
                 );
 
-                ClientContext.SpectatorContext.StopSpecating();
+                ClientContext.SpectatorContext.StopSpectating();
                 
                 Server.AuthenticatedClients.TryRemove(ClientContext!.User.UserID!, ClientContext!.User.Username, out _);
 #if DEBUG

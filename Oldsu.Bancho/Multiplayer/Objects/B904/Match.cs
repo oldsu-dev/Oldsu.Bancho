@@ -1,9 +1,13 @@
-﻿using Oldsu.Bancho.Enums;
+﻿using System.Threading;
+using Oldsu.Bancho.Enums;
+using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Enums;
+using Oldsu.Multiplayer.Enums;
+using MatchType = System.IO.MatchType;
 
-namespace Oldsu.Bancho.Objects.B904
+namespace Oldsu.Bancho.Multiplayer.Objects.B904
 {
-    public struct Match
+    public class Match
     {
         [BanchoSerializable] public byte MatchID { get; set; }
         [BanchoSerializable] public bool InProgress { get; set; }
