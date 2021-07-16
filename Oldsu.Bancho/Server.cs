@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
+using Oldsu.Bancho.Multiplayer;
 using Oldsu.Utils;
 
 namespace Oldsu.Bancho
@@ -14,10 +13,12 @@ namespace Oldsu.Bancho
     {
         private readonly WebSocketServer _server;
 
-        public static readonly MultiKeyConcurrentDictionary<uint, string, Client> AuthenticatedClients = new();
-        public static readonly ConcurrentDictionary<Guid, Client> Clients = new();
+        public readonly MultiKeyConcurrentDictionary<uint, string, Client> AuthenticatedClients = new();
+        public readonly ConcurrentDictionary<Guid, Client> Clients = new();
 
-        private static async Task PingWatchdog(CancellationToken ct = default)
+        public readonly Lobby MultiplayerLobby = new Lobby();
+
+        private async Task PingWatchdog(CancellationToken ct = default)
         {
             for (;;)
             {
@@ -44,7 +45,7 @@ namespace Oldsu.Bancho
         ///     Broadcasting to all clients.
         /// </summary>
         /// <param name="packet">Packet to broadcast</param>
-        public static void BroadcastPacket(BanchoPacket packet)
+        public void BroadcastPacket(BanchoPacket packet)
         {
             using var clients = AuthenticatedClients.Values;
             foreach (var c in clients)
@@ -58,7 +59,7 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="packet">Packet to broadcast</param>
         /// <param name="id">Id of client to avoid</param>
-        public static void BroadcastPacketToOthers(BanchoPacket packet, uint id)
+        public void BroadcastPacketToOthers(BanchoPacket packet, uint id)
         {
             using var clients = AuthenticatedClients.Values;
             foreach (var c in clients.Where(u => u.ClientContext!.User.UserID != id))
@@ -72,7 +73,7 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="packet">Packet to send</param>
         /// <param name="username">Username of the user to send the packet to.</param>
-        public static void SendPacketToSpecificUser(BanchoPacket packet, string username)
+        public void SendPacketToSpecificUser(BanchoPacket packet, string username)
         {
             if (AuthenticatedClients.TryGetValue(username, out var user))
                 user.SendPacket(packet);
@@ -90,7 +91,7 @@ namespace Oldsu.Bancho
             {
                 _server.Start(socket =>
                 {
-                    var client = new Client();
+                    var client = new Client(this);
                     
                     client.BindWebSocket(socket);
                 });
