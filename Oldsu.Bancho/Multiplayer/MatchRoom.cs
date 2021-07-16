@@ -1,8 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Bancho.Multiplayer.Objects;
 using Oldsu.Enums;
 using Oldsu.Multiplayer.Enums;
+using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Multiplayer
 {
@@ -15,7 +19,7 @@ namespace Oldsu.Bancho.Multiplayer
         
         public string GameName { get; set; }
         public string GamePassword { get; set; }
-        public string AllowedVersions { get; set; } // <- WTF
+        public Version AllowedVersions { get; set; } // <- WTF
 
         public string BeatmapName { get; set; }
         public int BeatmapID { get; set; }
@@ -28,8 +32,9 @@ namespace Oldsu.Bancho.Multiplayer
         public MatchType MatchType { get; set; }
         public short ActiveMods { get; set; }
 
-        public MatchSlot[] MatchSlots { get; set; } = new MatchSlot[8];
-
+        public MatchSlot[] MatchSlots { get; set; } = new MatchSlot[MaxMatchSize];
+        private readonly ReaderWriterLockSlim _rwLock = new();
+        
         public Match()
         {
             for (int x = 0; x < MaxMatchSize; x++)
@@ -44,14 +49,49 @@ namespace Oldsu.Bancho.Multiplayer
             }
         }
 
-        public int? Join(int clientId, string? password)
+        public bool TryJoin(Client client, string? password)
         {
             throw new NotImplementedException();
+            
+            _rwLock.EnterWriteLock();
+
+            bool joinSuccessful = false;
+            
+            try
+            {
+                for (int x = 0; x < MaxMatchSize; x++)
+                {
+                    if (MatchSlots[x].Client == null)
+                    {
+                        MatchSlots[x].SlotStatus = SlotStatus.NotReady;
+                        MatchSlots[x].SlotTeam = TeamType is MatchTeamTypes.TeamVs or MatchTeamTypes.TagTeamVs ? SlotTeams.Blue : SlotTeams.Red;
+                        MatchSlots[x].Client = client;
+
+                        joinSuccessful = true;
+                    }
+                }
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
+
+            // todo send packets too
+            
+            return joinSuccessful;
         }
 
-        public bool Leave(int clientId)
+        public void Leave(int clientId)
         {
             throw new NotImplementedException();
+            
+            foreach (var slot in MatchSlots.Where(slot => slot.Client != null))
+                if (slot.Client.ClientContext.User.UserID == clientId)
+                {
+                    slot.Reset();
+                }
+
+            // todo send correct packets
         }
 
         public void Start()
@@ -61,7 +101,7 @@ namespace Oldsu.Bancho.Multiplayer
 
         public void MoveSlot()
         {
-            
+            throw new NotImplementedException();
         }
     }
 }
