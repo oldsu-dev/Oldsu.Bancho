@@ -155,6 +155,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                     Playcount = (int)ClientInfo.Stats.Playcount,
                     Accuracy = ClientInfo.Stats.Accuracy / 100f,
                     Rank = 0,
+                    Privileges = (byte)ClientInfo.Presence.Privilege,
                     BStatusUpdate = new Packet.Out.B904.bStatusUpdate
                     {
                         bStatus = ClientInfo.Activity!.Status,
