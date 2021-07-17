@@ -2,19 +2,19 @@
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
-    public class SendMessage : ISharedPacketIn
+    public class SendPrivateMessage : ISharedPacketIn
     {
         public string Contents { get; init; }
         public string Target { get; init; }
         
         public async Task Handle(Client client)
         {
-            client.Server.BroadcastPacketToOthers(new BanchoPacket(new Out.SendMessage
+            client.Server.SendPacketToSpecificUser(new BanchoPacket(new Out.SendMessage
             {
                 Sender = client.ClientContext!.User.Username,
                 Contents = Contents,
                 Target = Target
-            }), client.UserID);
+            }), Target);
         }
     }
 }
