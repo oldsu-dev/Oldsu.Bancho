@@ -45,6 +45,7 @@ namespace Oldsu.Bancho
         public Client Self { get; set; }
         public Client? Host { get; private set; }
         
+        
         private Dictionary<uint, Client> Spectators { get; } = new();
         private ReaderWriterLockSlim _rwLock = new();
 
@@ -126,6 +127,8 @@ namespace Oldsu.Bancho
         public Server Server { get; init; }
 
         public ClientContext? ClientContext { get; private set; }
+
+        public uint? UserID => ClientContext?.User.UserID;
 
         private Guid _uuid;
         private IWebSocketConnection? _webSocketConnection;
