@@ -134,7 +134,7 @@ namespace Oldsu.Bancho
 
         public ClientContext? ClientContext { get; private set; }
 
-        public uint? UserID => ClientContext?.User.UserID;
+        public uint UserID => ClientContext?.User.UserID ?? 0;
 
         private Guid _uuid;
         private IWebSocketConnection? _webSocketConnection;
