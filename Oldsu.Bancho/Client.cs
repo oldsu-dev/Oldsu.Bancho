@@ -38,6 +38,7 @@ namespace Oldsu.Bancho
         public Presence Presence;
 
         public SpectatorContext SpectatorContext;
+        public MultiplayerContext MultiplayerContext;
     }
 
     public class SpectatorContext
@@ -119,6 +120,11 @@ namespace Oldsu.Bancho
         }
     }
     
+    public class MultiplayerContext
+    {
+        //Todo
+    }
+
     /// <summary>
     ///     Class for each user in oldsu's bancho
     /// </summary>
