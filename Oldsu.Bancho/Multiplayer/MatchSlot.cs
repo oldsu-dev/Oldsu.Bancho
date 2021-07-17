@@ -1,11 +1,10 @@
 ﻿using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Multiplayer.Enums;
 
-namespace Oldsu.Bancho.Multiplayer.Objects
+namespace Oldsu.Bancho.Multiplayer
 {
     public struct MatchSlot
     {
-        public int SlotID { get; init; }
         public SlotStatus SlotStatus { get; set; }
         public SlotTeams SlotTeam { get; set; }
         public Client? Client { get; set; }

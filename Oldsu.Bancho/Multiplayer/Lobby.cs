@@ -1,44 +1,39 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
-using Oldsu.Bancho.Multiplayer.Objects.B904;
 using Oldsu.Bancho.Packet;
 
 namespace Oldsu.Bancho.Multiplayer
 {
     public class Lobby
     {
-        public const int MatchesAvailable = 255;
+        public const int MatchesAvailable = 256;
         
         private readonly Dictionary<uint, Client> _clientsInLobby = new();
         private readonly ReaderWriterLockSlim _rwLock = new();
 
         public Match?[] Matches { get; private set; } = new Match?[MatchesAvailable];
 
-        // ref = pointer so no copy xddddddd
         public bool RegisterMatch(Match match)
         {
-            var registeredMatch = false;
-            
             _rwLock.EnterWriteLock();
 
             try
             {
-                // todo handle if all matches are used
-                for (byte i = 0; i <= MatchesAvailable; i++)
+                for (byte i = 0; i <= (MatchesAvailable - 1); i++)
                     if (Matches[i] == null)
                     {
                         Matches[i] = match;
                         match.MatchID = i;
-                        registeredMatch = true;
+                        return true;
                     }
+
+                return false;
             }
             finally
             {
                 _rwLock.ExitWriteLock();
             }
-
-            return registeredMatch;
         }
         
         public bool DisbandMatch(int id, int clientId)
