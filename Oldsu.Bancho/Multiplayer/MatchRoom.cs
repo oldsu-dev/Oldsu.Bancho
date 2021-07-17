@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Bancho.Multiplayer.Objects;
@@ -10,7 +11,7 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Multiplayer
 {
-    public class Match
+    public class MatchRoom
     {
         public const int MaxMatchSize = 8;
         
@@ -19,7 +20,7 @@ namespace Oldsu.Bancho.Multiplayer
         
         public string GameName { get; set; }
         public string GamePassword { get; set; }
-        public Version AllowedVersions { get; set; } // <- WTF
+        public List<Version> AllowedVersions { get; } = new (new []{ Version.B394A, Version.B904 }); // <- WTF
 
         public string BeatmapName { get; set; }
         public int BeatmapID { get; set; }
@@ -35,8 +36,12 @@ namespace Oldsu.Bancho.Multiplayer
         public MatchSlot[] MatchSlots { get; set; } = new MatchSlot[MaxMatchSize];
         private readonly ReaderWriterLockSlim _rwLock = new();
         
-        public Match()
+        public MatchRoom()
         {
+            // b394 lacks password field in bMatch, so it wont be in the lobby.
+            if (GamePassword is not "")
+                AllowedVersions.Remove(Version.B394A);
+            
             for (int x = 0; x < MaxMatchSize; x++)
             {
                 MatchSlots[x] = new MatchSlot
