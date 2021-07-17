@@ -60,14 +60,20 @@ namespace Oldsu.Bancho.Multiplayer
                 new MatchSlot { Client = null, SlotStatus = SlotStatus.Open, SlotTeam = SlotTeams.Neutral});
         }
 
-        public bool TryJoin(Client client, string? password)
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="password"></param>
+        /// <returns>Slot ID</returns>
+        public int? TryJoin(Client client, string? password)
         {
             _rwLock.EnterWriteLock();
 
             try
             {
                 if (password != GamePassword)
-                    return false;
+                    return -1;
                 
                 for (int i = 0; i < MaxMatchSize; i++)
                 {
@@ -80,10 +86,10 @@ namespace Oldsu.Bancho.Multiplayer
                     
                     MatchSlots[i].Client = client;
 
-                    return true;
+                    return i;
                 }
                 
-                return false;
+                return null;
             }
             finally
             {
@@ -91,17 +97,13 @@ namespace Oldsu.Bancho.Multiplayer
             }
         }
 
-        public void Leave(int clientId)
+        public void Leave(int slotId)
         {
             _rwLock.EnterWriteLock();
             
             try
             {
-                foreach (var slot in MatchSlots.Where(slot => slot.Client != null &&
-                                                              slot.Client!.ClientContext!.User.UserID == clientId))
-                {
-                    slot.Reset();
-                }
+                MatchSlots[slotId].Reset();
             }
             finally
             {
@@ -117,7 +119,13 @@ namespace Oldsu.Bancho.Multiplayer
 
             try
             {
-                Array.ForEach(MatchSlots, slot => slot.SlotStatus = SlotStatus.Playing);
+                Array.ForEach(MatchSlots, slot =>
+                {
+                    slot.SlotStatus = SlotStatus.Playing;
+                    slot.Completed = false;
+                    slot.Loaded = false;
+                    slot.Skipped = false;
+                });
             }
             finally
             {
@@ -125,18 +133,106 @@ namespace Oldsu.Bancho.Multiplayer
             }
         }
 
-        public void MoveSlot(int currentSlot, int newSlot)
-        {
+        public void ForceStop()
+        {            
             _rwLock.EnterWriteLock();
 
             try
             {
-                MatchSlots[currentSlot].Move(ref MatchSlots[newSlot]);
+                for (int i = 0; i < MaxMatchSize; i++)
+                    Complete(i);
             }
             finally
             {
                 _rwLock.ExitWriteLock();
             }
+        }
+
+        public void UnreadyAll()
+        {
+            _rwLock.EnterWriteLock();
+
+            try
+            {
+                Array.ForEach(MatchSlots, slot => slot.SlotStatus = SlotStatus.NotReady);
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <returns>Wether is skipped by all the users or not.</returns>
+        public bool Skip(int slotId)
+        {
+            _rwLock.EnterWriteLock();
+
+            try
+            {
+                MatchSlots[slotId].Skipped = true;
+                return MatchSlots.All(slot => slot.Skipped);
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
+        }
+
+        public bool CompleteLoad(int slotId)
+        {
+            _rwLock.EnterWriteLock();
+
+            try
+            {
+                MatchSlots[slotId].Loaded = true;
+                return MatchSlots.All(slot => slot.Loaded);
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
+        }
+        
+        public bool Complete(int slotId)
+        {
+            _rwLock.EnterWriteLock();
+
+            try
+            {
+                MatchSlots[slotId].Completed = true;
+                return MatchSlots.All(slot => slot.Completed);
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
+        }
+
+        public bool MoveSlot(int currentSlot, int newSlot)
+        {
+            _rwLock.EnterWriteLock();
+
+            try
+            {
+                if (MatchSlots[newSlot].Client != null)
+                    return false;
+
+                MatchSlots[currentSlot].Move(ref MatchSlots[newSlot]);
+                return true;
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
+        }
+
+        public bool TransferHost(int currentSlot, int newSlot)
+        {
+            //todo
+            throw new NotImplementedException();
         }
     }
 }
