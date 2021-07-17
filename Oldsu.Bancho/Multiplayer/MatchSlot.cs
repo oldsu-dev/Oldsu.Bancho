@@ -8,6 +8,9 @@ namespace Oldsu.Bancho.Multiplayer
         public SlotStatus SlotStatus { get; set; }
         public SlotTeams SlotTeam { get; set; }
         public Client? Client { get; set; }
+        
+        public bool Loaded { get; set; }
+        public bool Skipped { get; set; }
 
         public void Reset()
         {
