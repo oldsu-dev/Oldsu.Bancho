@@ -3,7 +3,7 @@ using Oldsu.Enums;
 using Oldsu.Multiplayer.Enums;
 using MatchType = System.IO.MatchType;
 
-namespace Oldsu.Bancho.Multiplayer.Objects.B904
+namespace Oldsu.Bancho.Packet.Objects.B904
 {
     public class Match
     {
