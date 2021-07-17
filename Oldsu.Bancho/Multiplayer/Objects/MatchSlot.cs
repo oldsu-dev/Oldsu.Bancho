@@ -16,5 +16,14 @@ namespace Oldsu.Bancho.Multiplayer.Objects
             SlotTeam = SlotTeams.Neutral;
             Client = null;
         }
+        
+        public void Move(ref MatchSlot newSlot)
+        {
+            newSlot.SlotStatus = SlotStatus;
+            newSlot.SlotTeam = SlotTeam;
+            newSlot.Client = Client;
+            
+            Reset();
+        }
     }
 }
