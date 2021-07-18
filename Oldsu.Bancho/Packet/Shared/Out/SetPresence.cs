@@ -8,30 +8,58 @@
         {
             Packet.Out.B394A.HandleOsuUpdateOnlineUser packet;
 
-            // todo add null check for stats
-            packet = new ()
+            if (ClientInfo.Stats != null)
             {
-                UserID = (int)ClientInfo.User!.UserID,
-                Username = ClientInfo.User.Username,
-                AvatarFilename = "old.jpg",
-                Timezone = 0,
-                Location = "Poopoo",
-                RankedScore = (long)ClientInfo.Stats!.RankedScore,
-                TotalScore = (long)ClientInfo.Stats.TotalScore,
-                Playcount = (int)ClientInfo.Stats.Playcount,
-                Accuracy = ClientInfo.Stats.Accuracy / 100f,
-                Rank = 0,
-                BStatusUpdate = new Packet.Out.B394A.bStatusUpdate
+                packet = new()
                 {
-                    bStatus = ClientInfo.Activity!.Status,
-                    BeatmapUpdate = new Packet.Out.B394A.BeatmapUpdate
+                    UserID = (int)ClientInfo.User!.UserID,
+                    Username = ClientInfo.User.Username,
+                    AvatarFilename = "old.jpg",
+                    Timezone = 0,
+                    Location = "Poopoo",
+                    RankedScore = (long)ClientInfo.Stats!.RankedScore,
+                    TotalScore = (long)ClientInfo.Stats.TotalScore,
+                    Playcount = (int)ClientInfo.Stats.Playcount,
+                    Accuracy = ClientInfo.Stats.Accuracy / 100f,
+                    Rank = 0,
+                    BStatusUpdate = new Packet.Out.B394A.bStatusUpdate
                     {
-                        Map = ClientInfo.Activity.Map,
-                        MapSha256 = ClientInfo.Activity.MapSHA256,
-                        Mods = ClientInfo.Activity.Mods
-                    },
-                }
-            };
+                        bStatus = ClientInfo.Activity!.Status,
+                        BeatmapUpdate = new Packet.Out.B394A.BeatmapUpdate
+                        {
+                            Map = ClientInfo.Activity.Map,
+                            MapSha256 = ClientInfo.Activity.MapSHA256,
+                            Mods = ClientInfo.Activity.Mods
+                        },
+                    }
+                };
+            }
+            else
+            {
+                packet = new ()
+                {
+                    UserID = (int)ClientInfo.User!.UserID,
+                    Username = ClientInfo.User.Username,
+                    AvatarFilename = "old.jpg",
+                    Timezone = 0,
+                    Location = "Poopoo",
+                    RankedScore = 0,
+                    TotalScore = 0,
+                    Playcount = 0,
+                    Accuracy = 0 / 100f,
+                    Rank = 0,
+                    BStatusUpdate = new Packet.Out.B394A.bStatusUpdate
+                    {
+                        bStatus = ClientInfo.Activity!.Status,
+                        BeatmapUpdate = new Packet.Out.B394A.BeatmapUpdate
+                        {
+                            Map = ClientInfo.Activity.Map,
+                            MapSha256 = ClientInfo.Activity.MapSHA256,
+                            Mods = ClientInfo.Activity.Mods,
+                        }
+                    }
+                };
+            }
 
             return packet;
         }
