@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
 using Oldsu.Bancho.Multiplayer;
+using Oldsu.Types;
 using Oldsu.Utils;
 
 namespace Oldsu.Bancho
@@ -17,6 +18,8 @@ namespace Oldsu.Bancho
         public readonly ConcurrentDictionary<Guid, Client> Clients = new();
 
         public readonly Lobby MultiplayerLobby = new Lobby();
+
+        public static Channel[] Channels { get; set; }
 
         private async Task PingWatchdog(CancellationToken ct = default)
         {
@@ -32,13 +35,18 @@ namespace Oldsu.Bancho
         }
 
         /// <summary>
-        ///     Initializes the websocket class
+        ///     Initializes the server. Fetches all the channels in the database, and sets them into a static variable.
         /// </summary>
         /// <param name="address">Address to bind server to. Example: ws://127.0.0.1:3000</param>
         public Server(string address)
         {
-            _server = new WebSocketServer(address);
+            if (Channels == null)
+            {
+                var db = new Database();
+                Channels = db.AvailableChannels.ToArray();
+            }
 
+            _server = new WebSocketServer(address);
         }
 
         /// <summary>
