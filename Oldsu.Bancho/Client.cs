@@ -13,7 +13,6 @@ using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
-using Oldsu.Bancho.Packet.Out.Generic;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Types;
@@ -25,6 +24,7 @@ using HostSpectatorJoined = Oldsu.Bancho.Packet.Shared.Out.HostSpectatorJoined;
 using HostSpectatorLeft = Oldsu.Bancho.Packet.Shared.Out.HostSpectatorLeft;
 using JoinChannel = Oldsu.Bancho.Packet.Shared.Out.JoinChannel;
 using Login = Oldsu.Bancho.Packet.Shared.Out.Login;
+using Match = Oldsu.Bancho.Multiplayer.Match;
 using UserQuit = Oldsu.Bancho.Packet.Shared.Out.UserQuit;
 using Version = Oldsu.Enums.Version;
 
@@ -122,7 +122,7 @@ namespace Oldsu.Bancho
     
     public class MultiplayerContext
     {
-        //Todo
+        public Match Match { get; set; }
     }
 
     /// <summary>
@@ -265,7 +265,8 @@ namespace Oldsu.Bancho
                         SpectatorContext = new SpectatorContext
                         {
                             Self = this,
-                        }
+                        },
+                        MultiplayerContext = new MultiplayerContext()
                     };
                     
                     Version = version;

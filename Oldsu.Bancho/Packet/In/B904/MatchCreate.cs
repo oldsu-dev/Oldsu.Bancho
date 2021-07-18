@@ -4,8 +4,18 @@ using Oldsu.Enums;
 namespace Oldsu.Bancho.Packet.In.B904
 {
     [BanchoPacket(32, Version.B904, BanchoPacketType.In)]
-    public class MatchCreate
+    public struct MatchCreate : Into<ISharedPacketIn>
     {
-        [BanchoSerializable] private Match Match { get; set; }
+        [BanchoSerializable] public Match Match;
+        
+        public ISharedPacketIn Into()
+        {
+            return new Shared.In.MatchCreate
+            {
+                Match = new Multiplayer.Match(
+                    Match.GameName, Match.GamePassword,
+                    Match.BeatmapID, Match.BeatmapName, Match.BeatmapChecksum)
+            };
+        }
     }
 }

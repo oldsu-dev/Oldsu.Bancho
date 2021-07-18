@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading;
 using Oldsu.Bancho.Packet;
+using Oldsu.Utils;
 
 namespace Oldsu.Bancho.Multiplayer
 {
@@ -12,7 +13,9 @@ namespace Oldsu.Bancho.Multiplayer
         private readonly Dictionary<uint, Client> _clientsInLobby = new();
         private readonly ReaderWriterLockSlim _rwLock = new();
 
-        public Match?[] Matches { get; private set; } = new Match?[MatchesAvailable];
+        private Match?[] _matches = new Match?[MatchesAvailable];
+
+        public RwLockableEnumerable<Match?> Matches => new(_rwLock, _matches);
 
         public bool RegisterMatch(Match match)
         {
@@ -21,9 +24,9 @@ namespace Oldsu.Bancho.Multiplayer
             try
             {
                 for (byte i = 0; i <= (MatchesAvailable - 1); i++)
-                    if (Matches[i] == null)
+                    if (_matches[i] == null)
                     {
-                        Matches[i] = match;
+                        _matches[i] = match;
                         match.MatchID = i;
                         return true;
                     }
@@ -35,17 +38,17 @@ namespace Oldsu.Bancho.Multiplayer
                 _rwLock.ExitWriteLock();
             }
         }
-        
+
         public bool DisbandMatch(int id, int clientId)
         {
             _rwLock.EnterWriteLock();
 
             try
             {
-                if (Matches[id] == null || clientId != Matches[id]!.HostID) 
+                if (_matches[id] == null || clientId != _matches[id]!.HostID) 
                     return false;
                 
-                Matches[id] = null;
+                _matches[id] = null;
                 return true;
             }
             finally

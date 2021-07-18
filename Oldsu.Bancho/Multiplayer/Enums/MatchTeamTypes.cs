@@ -1,6 +1,6 @@
 ﻿namespace Oldsu.Bancho.Multiplayer.Enums
 {
-    public enum MatchTeamTypes
+    public enum MatchTeamTypes : byte
     {
         // Token: 0x040001C8 RID: 456
         HeadToHead,
