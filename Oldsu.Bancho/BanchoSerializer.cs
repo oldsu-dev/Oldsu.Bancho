@@ -33,6 +33,22 @@ namespace Oldsu.Bancho
             Type = type;
         }
     }
+
+    public interface IBanchoCustomSerializer
+    {
+        void Serialize(object self, object instance, BinaryWriter writer);
+        object Deserialize(object instance, BinaryReader reader);
+    }
+    
+    public class BanchoCustomSerializerAttribute : System.Attribute
+    {
+        public IBanchoCustomSerializer Serializer { get; }
+
+        public BanchoCustomSerializerAttribute(Type serializer)
+        {
+            Serializer = (IBanchoCustomSerializer)Activator.CreateInstance(serializer)!;
+        }
+    }
     
     public class BanchoSerializableAttribute : System.Attribute
     {
@@ -45,20 +61,22 @@ namespace Oldsu.Bancho
             Optional = optional;
         }
     }
-
+    
     public class BanchoBuffer
     {
         public byte[] Data { get; set; }
     }
-    
+
     public static class BanchoSerializer
     {
         #region TypeMember's
 
-        private abstract class TypeMember
+        public abstract class TypeMember
         {
             public bool IsOptional { get; }
             protected MemberInfo Info { get; }
+            
+            public BanchoSerializableAttribute Attribute { get; }
 
             public object? GetValueFromObject(object instance)
             {
@@ -88,10 +106,10 @@ namespace Oldsu.Bancho
                 };
             }
 
-            protected TypeMember(MemberInfo info)
+            protected TypeMember(MemberInfo info, BanchoSerializableAttribute attribute)
             {
                 Info = info;
-
+                Attribute = attribute;
                 IsOptional = info.GetCustomAttribute<BanchoSerializableAttribute>()!.Optional;
             }
 
@@ -113,7 +131,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public IntMember(MemberInfo info) : base(info)
+            public IntMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -131,7 +149,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public UIntMember(MemberInfo info) : base(info)
+            public UIntMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -149,7 +167,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public LongMember(MemberInfo info) : base(info)
+            public LongMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -167,7 +185,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public ULongMember(MemberInfo info) : base(info)
+            public ULongMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -185,7 +203,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public ShortMember(MemberInfo info) : base(info)
+            public ShortMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -203,7 +221,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public UShortMember(MemberInfo info) : base(info)
+            public UShortMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -221,7 +239,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public ByteMember(MemberInfo info) : base(info)
+            public ByteMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -239,7 +257,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public SByteMember(MemberInfo info) : base(info)
+            public SByteMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -257,7 +275,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public FloatMember(MemberInfo info) : base(info)
+            public FloatMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -275,7 +293,7 @@ namespace Oldsu.Bancho
                 bw.Write(value);
             }
 
-            public BoolMember(MemberInfo info) : base(info)
+            public BoolMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
@@ -306,7 +324,7 @@ namespace Oldsu.Bancho
                     bw.Write(BanchoSerializer.Serialize(element));
             }
 
-            public ListMember(MemberInfo info) : base(info)
+            public ListMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
                 _typeArgument = info.MemberType switch
                 {
@@ -341,11 +359,43 @@ namespace Oldsu.Bancho
                 }
             }
 
-            public StringMember(MemberInfo info) : base(info)
+            public StringMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
             }
         }
 
+        private class ArrayMember : TypeMember
+        {
+            private Type _type;
+            
+            public ArrayMember(MemberInfo info, BanchoSerializableAttribute attribute) : base(info, attribute)
+            {
+                _type = GetMemberType(info);
+            }
+
+            public override void ReadFromStream(object? instance, BinaryReader br)
+            {
+                var array = (Array)Activator.CreateInstance(_type, Attribute.ArrayElementCount)!;
+
+                for (int i = 0; i < array.Length; i++)
+                    array.SetValue(Read(br, _type), i);
+                    
+                SetValueToObject(instance!, array);
+            }
+
+            public override void WriteToStream(object? instance, BinaryWriter bw)
+            {
+                var array = (Array)GetValueFromObject(instance)!;
+
+                if (Attribute.ArrayElementCount != array.Length)
+                    throw new InvalidDataException(
+                        $"Configured array size is {Attribute.ArrayElementCount}, got {array.Length}");
+
+                for (int i = 0; i < array.Length; i++)
+                    BanchoSerializer.Write(array.GetValue(i)!, bw);
+            }
+        }
+        
         private class ObjectMember : TypeMember
         {
             private Type _type;
@@ -353,45 +403,43 @@ namespace Oldsu.Bancho
 
             public override void ReadFromStream(object? instance, BinaryReader br)
             {
-                if (_type.IsArray)
-                {
-                    var array = (Array)Activator.CreateInstance(_type, _attrib.ArrayElementCount)!;
-
-                    for (int i = 0; i < array.Length; i++)
-                        array.SetValue(Read(br, _type), i);
-                    
-                    SetValueToObject(instance!, array);
-                }
-                else
-                    SetValueToObject(instance!, Read(br, _type));
+                SetValueToObject(instance!, Read(br, _type));
             }
 
             public override void WriteToStream(object? instance, BinaryWriter bw)
             {
-                if (instance == null)
-                    return;
-
-                if (_type.IsArray)
-                {
-                    var array = (Array)GetValueFromObject(instance)!;
-
-                    if (_attrib.ArrayElementCount != array.Length)
-                        throw new InvalidDataException(
-                            $"Configured array size is {_attrib.ArrayElementCount}, got {array.Length}");
-
-                    for (int i = 0; i < array.Length; i++)
-                        BanchoSerializer.Write(array.GetValue(i)!, bw);
-                } else
-                    BanchoSerializer.Write(GetValueFromObject(instance)!, bw);
+                BanchoSerializer.Write(GetValueFromObject(instance!)!, bw);
             }
 
-            public ObjectMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info)
+            public ObjectMember(MemberInfo info, BanchoSerializableAttribute attrib) : base(info, attrib)
             {
                 _type = GetMemberType(info);
-                _attrib = attrib;
             }
         }
 
+        private class CustomSerializeMember : TypeMember
+        {
+            private IBanchoCustomSerializer _customSerializer; 
+            
+            public CustomSerializeMember(
+                BanchoCustomSerializerAttribute customSerializer,
+                MemberInfo info, 
+                BanchoSerializableAttribute attribute) : base(info, attribute)
+            {
+                _customSerializer = customSerializer.Serializer;
+            }
+
+            public override void ReadFromStream(object? instance, BinaryReader br)
+            {
+                SetValueToObject(instance!, _customSerializer.Deserialize(instance!, br));
+            }
+
+            public override void WriteToStream(object? instance, BinaryWriter bw)
+            {
+                _customSerializer.Serialize(GetValueFromObject(instance!)!, instance!, bw);
+            }
+        }
+        
         #endregion
 
         private static Type GetMemberType(MemberInfo info)
@@ -414,8 +462,8 @@ namespace Oldsu.Bancho
                 if (nullableType != null)
                     type = nullableType!;
             }
-            
-            return type;
+
+            return type.BaseType ?? type;
         }
 
         private static readonly IReadOnlyDictionary<(ushort, Version), Type> _inPackets =
@@ -439,25 +487,34 @@ namespace Oldsu.Bancho
 
         private static ImmutableArray<TypeMember> GetTypeMembers(Type type)
         {
-            var members = (from memberInfo in GetAllMemberInfo(type)
-                where memberInfo.GetCustomAttribute<BanchoSerializableAttribute>() != null
-                select (TypeMember)(GetMemberType(memberInfo).ToString() switch
+            var members = GetAllMemberInfo(type)
+                .Where(memberInfo => memberInfo.GetCustomAttribute<BanchoSerializableAttribute>() != null)
+                .Select(memberInfo =>
                 {
-                    "System.Byte" => new ByteMember(memberInfo),
-                    "System.SByte" => new SByteMember(memberInfo),
-                    "System.Int16" => new ShortMember(memberInfo),
-                    "System.UInt16" => new UShortMember(memberInfo),
-                    "System.Int32" => new IntMember(memberInfo),
-                    "System.Int64" => new LongMember(memberInfo),
-                    "System.UInt32" => new UIntMember(memberInfo),
-                    "System.UInt64" => new ULongMember(memberInfo),
-                    "System.Single" => new FloatMember(memberInfo),
-                    "System.String" => new StringMember(memberInfo),
-                    "System.Boolean" => new BoolMember(memberInfo),
-                    "System.Collections.Generic.List" => new ListMember(memberInfo),
+                    var attrib = memberInfo.GetCustomAttribute<BanchoSerializableAttribute>()!;
+                    var memberType = GetMemberType(memberInfo);
 
-                    _ => new ObjectMember(memberInfo, memberInfo.GetCustomAttribute<BanchoSerializableAttribute>())
-                })).ToImmutableArray();
+                    if (memberType.IsArray)
+                        return new ArrayMember(memberType, attrib);
+                    
+                    return (TypeMember)(memberType.ToString() switch
+                    {
+                        "System.Byte" => new ByteMember(memberInfo, attrib),
+                        "System.SByte" => new SByteMember(memberInfo, attrib),
+                        "System.Int16" => new ShortMember(memberInfo, attrib),
+                        "System.UInt16" => new UShortMember(memberInfo, attrib),
+                        "System.Int32" => new IntMember(memberInfo, attrib),
+                        "System.Int64" => new LongMember(memberInfo, attrib),
+                        "System.UInt32" => new UIntMember(memberInfo, attrib),
+                        "System.UInt64" => new ULongMember(memberInfo, attrib),
+                        "System.Single" => new FloatMember(memberInfo, attrib),
+                        "System.String" => new StringMember(memberInfo, attrib),
+                        "System.Boolean" => new BoolMember(memberInfo, attrib),
+                        "System.Collections.Generic.List" => new ListMember(memberInfo, attrib),
+
+                        _ => new ObjectMember(memberInfo, attrib)
+                    });
+                }).ToImmutableArray();
             
             return members;
         }

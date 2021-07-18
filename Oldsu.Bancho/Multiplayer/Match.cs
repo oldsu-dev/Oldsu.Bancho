@@ -231,8 +231,24 @@ namespace Oldsu.Bancho.Multiplayer
 
         public bool TransferHost(int currentSlot, int newSlot)
         {
-            //todo
-            throw new NotImplementedException();
+            _rwLock.EnterWriteLock();
+            
+            try
+            {
+                //todo
+                if (MatchSlots[newSlot].Client == null ||
+                    MatchSlots[newSlot].Client!.UserID == MatchSlots[currentSlot].Client!.UserID)
+                {
+                    return false;
+                }
+
+                HostID = (int)MatchSlots[newSlot].Client!.UserID;
+                return true;
+            }
+            finally
+            {
+                _rwLock.ExitWriteLock();
+            }
         }
     }
 }
