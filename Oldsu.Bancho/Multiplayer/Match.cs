@@ -36,13 +36,15 @@ namespace Oldsu.Bancho.Multiplayer
         public MatchType MatchType { get; set; }
         public short ActiveMods { get; set; }
 
-        private MatchSlot[] MatchSlots { get; set; } = new MatchSlot[MaxMatchSize];
-        private readonly ReaderWriterLockSlim _rwLock = new();
+        public MatchSlot[] MatchSlots { get; set; }
 
-        public RwLockableEnumerable<MatchSlot> Slots => new(_rwLock, MatchSlots);
+        public void UpdateSupportedVersions()
+        {
+            // b394 lacks password field in bMatch, so it wont be in the lobby.
+            if (GamePassword is not (null or ""))
+                AllowedVersions.Remove(Version.B394A);
+        }
 
-        public int SkipRequests = 0;
-        
         public Match(string gameName, string gamePassword, int beatmapId, 
             string? beatmapName, string? beatmapChecksum)
         {
@@ -51,14 +53,13 @@ namespace Oldsu.Bancho.Multiplayer
             BeatmapName = beatmapName;
             BeatmapChecksum = beatmapChecksum;
             BeatmapID = beatmapId;
-            
-            // b394 lacks password field in bMatch, so it wont be in the lobby.
-            if (GamePassword is not (null or ""))
-                AllowedVersions.Remove(Version.B394A);
-            
+
+            MatchSlots = new MatchSlot[MaxMatchSize];
+
             Array.Fill(MatchSlots, 
-                new MatchSlot { Client = null, SlotStatus = SlotStatus.Open, SlotTeam = SlotTeams.Neutral});
+                new MatchSlot { SlotId = -1, Client = null, SlotStatus = SlotStatus.Open, SlotTeam = SlotTeams.Neutral});
         }
+
 
         /// <summary>
         /// 
@@ -66,100 +67,54 @@ namespace Oldsu.Bancho.Multiplayer
         /// <param name="client"></param>
         /// <param name="password"></param>
         /// <returns>Slot ID</returns>
-        public int? TryJoin(Client client, string? password)
+        public async Task<int?> TryJoin(Client client, string? password)
         {
-            _rwLock.EnterWriteLock();
-
-            try
+            if (password != GamePassword)
+                return -1;
+            
+            for (int i = 0; i < MaxMatchSize; i++)
             {
-                if (password != GamePassword)
-                    return -1;
+                if (MatchSlots[i].Client != null) 
+                    continue;
                 
-                for (int i = 0; i < MaxMatchSize; i++)
-                {
-                    if (MatchSlots[i].Client != null) 
-                        continue;
-                    
-                    MatchSlots[i].SlotStatus = SlotStatus.NotReady;
-                    MatchSlots[i].SlotTeam = TeamType is MatchTeamTypes.TeamVs or MatchTeamTypes.TagTeamVs ? 
-                        SlotTeams.Blue : SlotTeams.Red;
-                    
-                    MatchSlots[i].Client = client;
+                MatchSlots[i].SlotStatus = SlotStatus.NotReady;
+                MatchSlots[i].SlotTeam = TeamType is MatchTeamTypes.TeamVs or MatchTeamTypes.TagTeamVs ? 
+                    SlotTeams.Blue : SlotTeams.Red;
+                
+                MatchSlots[i].Client = client;
+                MatchSlots[i].SlotId = (int)await client.GetUserID();
 
-                    return i;
-                }
-                
-                return null;
+                return i;
             }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            
+            return null;
         }
 
         public void Leave(int slotId)
         {
-            _rwLock.EnterWriteLock();
-            
-            try
-            {
-                MatchSlots[slotId].Reset();
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
-
-            // todo send correct packets
+            MatchSlots[slotId].Reset();
         }
 
         public void Start()
         {
-            _rwLock.EnterWriteLock();
-
-            try
+            Array.ForEach(MatchSlots, slot =>
             {
-                Array.ForEach(MatchSlots, slot =>
-                {
-                    slot.SlotStatus = SlotStatus.Playing;
-                    slot.Completed = false;
-                    slot.Loaded = false;
-                    slot.Skipped = false;
-                });
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+                slot.SlotStatus = SlotStatus.Playing;
+                slot.Completed = false;
+                slot.Loaded = false;
+                slot.Skipped = false;
+            });
         }
 
         public void ForceStop()
         {            
-            _rwLock.EnterWriteLock();
-
-            try
-            {
-                for (int i = 0; i < MaxMatchSize; i++)
-                    Complete(i);
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            for (int i = 0; i < MaxMatchSize; i++)
+                Complete(i);
         }
 
         public void UnreadyAll()
         {
-            _rwLock.EnterWriteLock();
-
-            try
-            {
-                Array.ForEach(MatchSlots, slot => slot.SlotStatus = SlotStatus.NotReady);
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            Array.ForEach(MatchSlots, slot => slot.SlotStatus = SlotStatus.NotReady);
         }
 
         /// <summary>
@@ -168,87 +123,41 @@ namespace Oldsu.Bancho.Multiplayer
         /// <returns>Wether is skipped by all the users or not.</returns>
         public bool Skip(int slotId)
         {
-            _rwLock.EnterWriteLock();
-
-            try
-            {
-                MatchSlots[slotId].Skipped = true;
-                return MatchSlots.All(slot => slot.Skipped);
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            MatchSlots[slotId].Skipped = true;
+            return MatchSlots.All(slot => slot.Skipped);
         }
 
         public bool CompleteLoad(int slotId)
         {
-            _rwLock.EnterWriteLock();
-
-            try
-            {
-                MatchSlots[slotId].Loaded = true;
-                return MatchSlots.All(slot => slot.Loaded);
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            MatchSlots[slotId].Loaded = true;
+            return MatchSlots.All(slot => slot.Loaded);
         }
         
         public bool Complete(int slotId)
         {
-            _rwLock.EnterWriteLock();
-
-            try
-            {
-                MatchSlots[slotId].Completed = true;
-                return MatchSlots.All(slot => slot.Completed);
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            MatchSlots[slotId].Completed = true;
+            return MatchSlots.All(slot => slot.Completed);
         }
 
         public bool MoveSlot(int currentSlot, int newSlot)
         {
-            _rwLock.EnterWriteLock();
+            if (MatchSlots[newSlot].Client != null)
+                return false;
 
-            try
-            {
-                if (MatchSlots[newSlot].Client != null)
-                    return false;
-
-                MatchSlots[currentSlot].Move(ref MatchSlots[newSlot]);
-                return true;
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            MatchSlots[currentSlot].Move(ref MatchSlots[newSlot]);
+            return true;
         }
 
         public bool TransferHost(int currentSlot, int newSlot)
         {
-            _rwLock.EnterWriteLock();
-            
-            try
+            if (MatchSlots[newSlot].Client == null ||
+                MatchSlots[newSlot].SlotId == MatchSlots[currentSlot].SlotId)
             {
-                //todo
-                if (MatchSlots[newSlot].Client == null ||
-                    MatchSlots[newSlot].Client!.UserID == MatchSlots[currentSlot].Client!.UserID)
-                {
-                    return false;
-                }
+                return false;
+            }
 
-                HostID = (int)MatchSlots[newSlot].Client!.UserID;
-                return true;
-            }
-            finally
-            {
-                _rwLock.ExitWriteLock();
-            }
+            HostID = MatchSlots[newSlot].SlotId;
+            return true;
         }
     }
 }

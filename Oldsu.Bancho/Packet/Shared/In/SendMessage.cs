@@ -9,12 +9,15 @@ namespace Oldsu.Bancho.Packet.Shared.In
         
         public async Task Handle(Client client)
         {
-            client.Server.BroadcastPacketToOthers(new BanchoPacket(new Out.SendMessage
+            await client.ClientContext!.ReadAsync(async context =>
             {
-                Sender = client.ClientContext!.User.Username,
-                Contents = Contents,
-                Target = Target
-            }), client.UserID);
+                await client.Server.BroadcastPacketToOthersAsync(new BanchoPacket(new Out.SendMessage
+                {
+                    Sender = context.User.Username,
+                    Contents = Contents,
+                    Target = Target
+                }), context.User.UserID);
+            });
         }
     }
 }

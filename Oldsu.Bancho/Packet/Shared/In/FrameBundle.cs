@@ -8,7 +8,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
         
         public async Task Handle(Client client)
         {
-            client.ClientContext?.SpectatorContext.BroadcastFrames( new Out.FrameBundle
+            client.BroadcastFramesAsync( new Out.FrameBundle
             {
                 Frames = Frames
             });

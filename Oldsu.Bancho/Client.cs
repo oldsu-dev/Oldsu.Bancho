@@ -16,6 +16,7 @@ using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Types;
+using Oldsu.Utils.Threading;
 using osuserver2012.Enums;
 
 using BanchoPrivileges = Oldsu.Bancho.Packet.Shared.Out.BanchoPrivileges;
@@ -32,97 +33,24 @@ namespace Oldsu.Bancho
 { 
     public class ClientContext
     {
-        public User User;
-        public Stats? Stats;
-        public UserActivity Activity;
-        public Presence Presence;
+        public User User { get; set; } = null!;
+        public Stats? Stats { get; set; } = null!;
+        public UserActivity Activity { get; set; } = null!;
+        public Presence Presence { get; set; } = null!;
 
-        public SpectatorContext SpectatorContext;
-        public MultiplayerContext MultiplayerContext;
+        public SpectatorContext SpectatorContext { get; init; } = null!;
+        public MultiplayerContext MultiplayerContext { get; init; } = null!;
     }
 
     public class SpectatorContext
     {
-        public Client Self { get; set; }
-        public Client? Host { get; private set; }
-        
-        
-        private Dictionary<uint, Client> Spectators { get; } = new();
-        private ReaderWriterLockSlim _rwLock = new();
-
-        public void StopSpectating()
-        {
-            Host?.ClientContext.SpectatorContext._rwLock.EnterWriteLock();
-            
-            if (Host == null)
-                return;
-
-            var hostSpectatorContext = Host.ClientContext.SpectatorContext;
-
-            try
-            {
-                hostSpectatorContext.Spectators.Remove(Self.ClientContext!.User.UserID);
-
-                Host.SendPacket(new BanchoPacket(new HostSpectatorLeft
-                {
-                    UserID = (int)Self.ClientContext!.User.UserID
-                }));
-
-                Host = null;
-
-                Console.WriteLine($"Stopped spectating.");
-            }
-            finally
-            {
-                hostSpectatorContext._rwLock.ExitWriteLock(); 
-            }
-        }
-
-        public void StartSpectating(Client host)
-        {
-            var hostSpectatorContext = host.ClientContext.SpectatorContext;
-            hostSpectatorContext._rwLock.EnterWriteLock();
-            
-            try
-            {
-                host.SendPacket(new BanchoPacket(new HostSpectatorJoined
-                {
-                    UserID = (int) Self.ClientContext!.User.UserID,
-                }));
-
-                host.ClientContext!.SpectatorContext.Spectators.TryAdd(Self.ClientContext!.User.UserID, Self);
-
-                Host = host;
-                
-                Console.WriteLine($"Started spectating {host.ClientContext.User.UserID}");
-            }
-            finally
-            {
-                hostSpectatorContext._rwLock.ExitWriteLock();
-            }
-        }
-
-        public void BroadcastFrames(FrameBundle frameBundlePacket)
-        {
-            _rwLock.EnterReadLock();
-
-            try
-            {
-                var packet = new BanchoPacket(frameBundlePacket);
-
-                foreach (var spectator in Spectators.Values)
-                    spectator.SendPacket(packet);
-            }
-            finally
-            {
-                _rwLock.ExitReadLock();
-            }
-        }
+        public Client? SpectatingClient { get; set; } 
+        public Dictionary<uint, Client> Spectators { get; } = new();
     }
     
     public class MultiplayerContext
     {
-        public Match Match { get; set; }
+        public AsyncRwLockWrapper<Match>? Match { get; set; }
     }
 
     /// <summary>
@@ -132,12 +60,13 @@ namespace Oldsu.Bancho
     {
         public Server Server { get; init; }
 
-        public ClientContext? ClientContext { get; private set; }
+        public AsyncRwLockWrapper<ClientContext>? ClientContext { get; private set; }
 
-        public uint UserID => ClientContext?.User.UserID ?? 0;
+        public async Task<uint> GetUserID() => await ClientContext!.ReadAsync(context => context!.User.UserID);
 
         private Guid _uuid;
         private IWebSocketConnection? _webSocketConnection;
+        
         
         public const int AuthTimeoutPeriod = 10_000;
         public const int PingTimeoutPeriod = 35_000;
@@ -156,7 +85,7 @@ namespace Oldsu.Bancho
             PingTimeoutWindow = DateTime.Now + new TimeSpan(0,0,0,0, nextPeriod);
         }
 
-        public void BindWebSocket(IWebSocketConnection webSocketConnection)
+        public async Task BindWebSocketAsync(IWebSocketConnection webSocketConnection)
         {
             _webSocketConnection = webSocketConnection;
 
@@ -165,11 +94,11 @@ namespace Oldsu.Bancho
             _webSocketConnection.OnClose += HandleClose;
 
             _uuid = new Guid();
-            Server.Clients.TryAdd(_uuid, this);
+            await Server.Clients.WriteAsync(clients => clients.TryAdd(_uuid, this));
 
             ResetPing(AuthTimeoutPeriod);
         }
-
+        
         private SemaphoreSlim _sendPacketSemaphore = new(1, 1);
 
         public void SendPacket(BanchoPacket packet) => Task.Run(() => SendPacketAsync(packet));
@@ -209,7 +138,7 @@ namespace Oldsu.Bancho
         {
             if (ClientContext == null)
             {
-                Disconnect();
+                _webSocketConnection!.Close();
                 return;
             }
             
@@ -247,7 +176,7 @@ namespace Oldsu.Bancho
 
                     Console.WriteLine("{0} connected.", user!.Username);
                     
-                    ClientContext = new ClientContext
+                    var context = new ClientContext
                     {
                         User = user,
                         Activity = new UserActivity(),
@@ -259,40 +188,45 @@ namespace Oldsu.Bancho
                             Longitude = x,
                             Latitude = y
                         },
-                        Stats = await db.Stats
-                            .Where(s => s.UserID == user.UserID)
-                            .FirstAsync(),
-                        SpectatorContext = new SpectatorContext
-                        {
-                            Self = this,
-                        },
+                        Stats = await db.Stats.Where(s => s.UserID == user.UserID).FirstAsync(),
+                        SpectatorContext = new SpectatorContext(),
                         MultiplayerContext = new MultiplayerContext()
                     };
-                    
+
                     Version = version;
 
                     await SendPacketAsync(new BanchoPacket(
                         new Login { LoginStatus = (int)user.UserID }));
 
                     await SendPacketAsync(new BanchoPacket(
-                        new BanchoPrivileges { Privileges = ClientContext.Presence.Privilege }));
-                    
-                    Server.AuthenticatedClients.TryAdd(user.UserID, user.Username, this);
+                        new BanchoPrivileges { Privileges = context.Presence.Privilege }));
 
-                    using (var clients = Server.AuthenticatedClients.Values)
-                        foreach (var c in clients)
-                            await SendPacketAsync(new BanchoPacket(
-                                new SetPresence { ClientInfo = c.ClientContext! }));
+                    await Server.AuthenticatedClients.ReadAsync(async clients =>
+                    {
+                        foreach (var c in clients.Values)
+                            await c.ClientContext!.ReadAsync(async cContext =>
+                                await SendPacketAsync(new BanchoPacket(
+                                    new SetPresence { ClientContext = cContext }))
+                            );
+                    });
 
-                    Server.BroadcastPacket(new BanchoPacket( 
-                        new SetPresence { ClientInfo = ClientContext }));
-
-                    // TODO, send correct channel packets saved for user.
-
-                    Server.BroadcastPacket(new BanchoPacket( 
+                    await SendPacketAsync(new BanchoPacket( 
                         new JoinChannel { ChannelName = "#osu" }));
                     
+                    await Server.AuthenticatedClients.WriteAsync(clients =>
+                        clients.TryAdd(user.UserID, user.Username, this));
+
+                    ClientContext = new(context);
+
+                    await ClientContext.ReadAsync(async cContext =>
+                    {
+                        await Server.BroadcastPacketAsync(new BanchoPacket(
+                            new SetPresence { ClientContext = context }));
+                    });
+                    
                     break;
+                
+                
                 
                 default:
                     await SendPacketAsync(new BanchoPacket(
@@ -302,37 +236,100 @@ namespace Oldsu.Bancho
             }
         }
 
-        public void HandleClose()
+        private async void HandleClose()
         {
             _webSocketConnection!.OnMessage -= HandleLoginAsync;
             _webSocketConnection!.OnBinary -= HandleDataAsync;
             _webSocketConnection!.OnClose -= HandleClose;
             
-            Disconnect();
+            await DisconnectAsync();
+        }
+
+                
+        public async Task<bool> AddSpectator(uint id, Client client)
+        {
+            return await this.ClientContext!.WriteAsync(context => 
+                context.SpectatorContext.Spectators.TryAdd(id, client));
+        }
+        
+        public async Task<bool> RemoveSpectator(uint id)
+        {
+            return await this.ClientContext!.WriteAsync(context => 
+                context.SpectatorContext.Spectators.Remove(id));
+        }
+        
+        public async Task<bool> StopSpectating()
+        {
+            return await this.ClientContext!.WriteAsync(async context =>
+            {
+                if (context.SpectatorContext.Spectators.Count > 0)
+                    return false;
+                
+                if (context.SpectatorContext.SpectatingClient == null)
+                    return false;
+                
+                if (!await context.SpectatorContext.SpectatingClient.RemoveSpectator(context.User.UserID))
+                    return false;
+                    
+                context.SpectatorContext.SpectatingClient = null;
+                return true;
+            });
+        }
+        
+        public async Task<bool> StartSpectating(Client client)
+        {
+            return await this.ClientContext!.WriteAsync(async context =>
+            {
+                if (context.SpectatorContext.Spectators.Count > 0)
+                    return false;
+                
+                if (context.SpectatorContext.SpectatingClient != null)
+                    return false;
+
+                if (!await client.AddSpectator(context.User.UserID, client))
+                    return false;
+                
+                context.SpectatorContext.SpectatingClient = client;
+                
+                return true;
+            });
+        }
+        
+        
+        public async Task BroadcastFramesAsync(FrameBundle frameBundle)
+        {
+            await ClientContext!.ReadAsync(async context =>
+            {
+                foreach (var client in context.SpectatorContext.Spectators.Values)
+                    await client.SendPacketAsync(new BanchoPacket(new FrameBundle { Frames = frameBundle.Frames }));
+            });
         }
 
         /// <summary>
         ///     Disconnects client from the server.
         /// </summary>
-        public void Disconnect()
+        public async Task DisconnectAsync()
         {
             if (ClientContext != null)
             {
-                Server.BroadcastPacket(new BanchoPacket(
-                    new UserQuit { UserID = (int)ClientContext?.User.UserID! })
-                );
+                await ClientContext.ReadAsync(async context =>
+                {
+                    await Server.AuthenticatedClients.WriteAsync(clients => 
+                        clients.TryRemove(context.User.UserID!, context.User.Username, out _));
+                    
+                    await Server.BroadcastPacketAsync(new BanchoPacket(
+                        new UserQuit { UserID = (int)context.User.UserID! })
+                    );
 
-                ClientContext.SpectatorContext.StopSpectating();
-                
-                Server.AuthenticatedClients.TryRemove(ClientContext!.User.UserID!, ClientContext!.User.Username, out _);
 #if DEBUG
-                Console.WriteLine(ClientContext?.User.Username + " disconnected.");
+                    Console.WriteLine(context.User.Username + " disconnected.");
 #endif
+                });
             }
 
-            Server.Clients.TryRemove(_uuid, out _);
+            await Server.Clients.WriteAsync(clients => clients.Remove(_uuid, out _));
             
-            _webSocketConnection.Close();
+            _webSocketConnection!.Close();
         }
 
         /// <summary>
@@ -398,5 +395,6 @@ namespace Oldsu.Bancho
 
             return (geoLoc.Lat, geoLoc.Lon);
         }
+
     }
 }

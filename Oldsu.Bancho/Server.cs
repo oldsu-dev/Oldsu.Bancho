@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Utils;
+using Oldsu.Utils.Threading;
 
 namespace Oldsu.Bancho
 {
@@ -13,19 +15,24 @@ namespace Oldsu.Bancho
     {
         private readonly WebSocketServer _server;
 
-        public readonly MultiKeyConcurrentDictionary<uint, string, Client> AuthenticatedClients = new();
-        public readonly ConcurrentDictionary<Guid, Client> Clients = new();
+        public AsyncRwLockWrapper<MultiKeyDictionary<uint, string, Client>> AuthenticatedClients { get; } = 
+            new(new MultiKeyDictionary<uint, string, Client>());
+        public AsyncRwLockWrapper<Dictionary<Guid, Client>> Clients { get; } = 
+            new(new Dictionary<Guid, Client>());
 
-        public readonly Lobby MultiplayerLobby = new Lobby();
+        public AsyncRwLockWrapper<Lobby> MultiplayerLobby { get; }
 
         private async Task PingWatchdog(CancellationToken ct = default)
         {
             for (;;)
             {
                 ct.ThrowIfCancellationRequested();
-                
-                foreach (var client in Clients.Values.Where(c => DateTime.Now > c.PingTimeoutWindow))
-                    client.Disconnect();
+
+                await Clients.ReadAsync(async (clients) =>
+                {
+                    foreach (var client in clients.Values.Where(c => DateTime.Now > c.PingTimeoutWindow))
+                        await client.DisconnectAsync();
+                });
                 
                 await Task.Delay(1000, ct);
             }
@@ -38,20 +45,20 @@ namespace Oldsu.Bancho
         public Server(string address)
         {
             _server = new WebSocketServer(address);
-
+            MultiplayerLobby = new(new Lobby(this));
         }
 
         /// <summary>
         ///     Broadcasting to all clients.
         /// </summary>
         /// <param name="packet">Packet to broadcast</param>
-        public void BroadcastPacket(BanchoPacket packet)
+        public async Task BroadcastPacketAsync(BanchoPacket packet)
         {
-            using var clients = AuthenticatedClients.Values;
-            foreach (var c in clients)
+            await AuthenticatedClients.ReadAsync((clients) =>
             {
-                c.SendPacket(packet);
-            }
+                foreach (var c in clients.Values)
+                    c.SendPacket(packet);
+            });
         }
 
         /// <summary>
@@ -59,13 +66,18 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="packet">Packet to broadcast</param>
         /// <param name="id">Id of client to avoid</param>
-        public void BroadcastPacketToOthers(BanchoPacket packet, uint id)
+        public async Task BroadcastPacketToOthersAsync(BanchoPacket packet, uint id)
         {
-            using var clients = AuthenticatedClients.Values;
-            foreach (var c in clients.Where(u => u.ClientContext!.User.UserID != id))
+            await AuthenticatedClients.ReadAsync(async clients =>
             {
-                c.SendPacket(packet);
-            }
+                foreach (var c in clients.Values)
+                {
+                    if (await c.GetUserID() == id)
+                        continue;
+                    
+                    c.SendPacket(packet);
+                }
+            });
         }
         
         /// <summary>
@@ -73,10 +85,17 @@ namespace Oldsu.Bancho
         /// </summary>
         /// <param name="packet">Packet to send</param>
         /// <param name="username">Username of the user to send the packet to.</param>
-        public void SendPacketToSpecificUser(BanchoPacket packet, string username)
+        public async Task<bool> SendPacketToSpecificUserAsync(BanchoPacket packet, string username)
         {
-            if (AuthenticatedClients.TryGetValue(username, out var user))
-                user.SendPacket(packet);
+            return await AuthenticatedClients.ReadAsync((clients) =>
+            {
+                bool hasClient = clients.TryGetValue(username, out var user);
+                
+                if (hasClient)
+                    user.SendPacket(packet);
+
+                return hasClient;
+            });
         }
 
         /// <summary>
@@ -89,11 +108,10 @@ namespace Oldsu.Bancho
             
             try
             {
-                _server.Start(socket =>
+                _server.Start(async socket =>
                 {
                     var client = new Client(this);
-                    
-                    client.BindWebSocket(socket);
+                    await client.BindWebSocketAsync(socket);
                 });
             }
             catch (Exception e)

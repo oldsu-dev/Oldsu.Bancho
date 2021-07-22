@@ -6,7 +6,8 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(Client client)
         {
-            client.Server.MultiplayerLobby.RemovePlayer(client);
+            await client.Server.MultiplayerLobby.WriteAsync(
+                lobby => lobby.RemovePlayerAsync(client));
         }
     }
 }

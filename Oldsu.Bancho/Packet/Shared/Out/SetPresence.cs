@@ -2,7 +2,7 @@
 {
     public struct SetPresence : ISharedPacketOut, Into<IB394APacketOut>, Into<IB904PacketOut>
     {
-        public ClientContext ClientInfo { get; init; }
+        public ClientContext ClientContext { get; init; }
 
         IB394APacketOut Into<IB394APacketOut>.Into()
         {
@@ -11,24 +11,24 @@
             // todo add null check for stats
             packet = new ()
             {
-                UserID = (int)ClientInfo.User!.UserID,
-                Username = ClientInfo.User.Username,
+                UserID = (int)ClientContext.User!.UserID,
+                Username = ClientContext.User.Username,
                 AvatarFilename = "old.jpg",
                 Timezone = 0,
                 Location = "Poopoo",
-                RankedScore = (long)ClientInfo.Stats!.RankedScore,
-                TotalScore = (long)ClientInfo.Stats.TotalScore,
-                Playcount = (int)ClientInfo.Stats.Playcount,
-                Accuracy = ClientInfo.Stats.Accuracy / 100f,
+                RankedScore = (long)ClientContext.Stats!.RankedScore,
+                TotalScore = (long)ClientContext.Stats.TotalScore,
+                Playcount = (int)ClientContext.Stats.Playcount,
+                Accuracy = ClientContext.Stats.Accuracy / 100f,
                 Rank = 0,
                 BStatusUpdate = new Packet.Out.B394A.bStatusUpdate
                 {
-                    bStatus = ClientInfo.Activity!.Status,
+                    bStatus = ClientContext.Activity!.Status,
                     BeatmapUpdate = new Packet.Out.B394A.BeatmapUpdate
                     {
-                        Map = ClientInfo.Activity.Map,
-                        MapSha256 = ClientInfo.Activity.MapSHA256,
-                        Mods = ClientInfo.Activity.Mods
+                        Map = ClientContext.Activity.Map,
+                        MapSha256 = ClientContext.Activity.MapSHA256,
+                        Mods = ClientContext.Activity.Mods
                     },
                 }
             };
@@ -40,30 +40,30 @@
         {
             Packet.Out.B904.HandleOsuUpdateOnlineUser packet;
 
-            if (ClientInfo.Stats != null)
+            if (ClientContext.Stats != null)
             {
                 packet = new()
                 {
-                    UserID = (int)ClientInfo.User!.UserID,
-                    Username = ClientInfo.User.Username,
+                    UserID = (int)ClientContext.User!.UserID,
+                    Username = ClientContext.User.Username,
                     AvatarFilename = "old.jpg",
                     Timezone = 0,
                     Location = "Poopoo",
-                    RankedScore = (long)ClientInfo.Stats!.RankedScore,
-                    TotalScore = (long)ClientInfo.Stats.TotalScore,
-                    Playcount = (int)ClientInfo.Stats.Playcount,
-                    Accuracy = ClientInfo.Stats.Accuracy / 100f,
+                    RankedScore = (long)ClientContext.Stats!.RankedScore,
+                    TotalScore = (long)ClientContext.Stats.TotalScore,
+                    Playcount = (int)ClientContext.Stats.Playcount,
+                    Accuracy = ClientContext.Stats.Accuracy / 100f,
                     Rank = 0,
-                    Privileges = (byte)ClientInfo.Presence.Privilege,
+                    Privileges = (byte)ClientContext.Presence.Privilege,
                     BStatusUpdate = new Packet.Out.B904.bStatusUpdate
                     {
-                        bStatus = ClientInfo.Activity!.Status,
+                        bStatus = ClientContext.Activity!.Status,
                         BeatmapUpdate = new Packet.Out.B904.BeatmapUpdate
                         {
-                            Map = ClientInfo.Activity.Map,
-                            MapSha256 = ClientInfo.Activity.MapSHA256,
-                            Mods = ClientInfo.Activity.Mods,
-                            Gamemode = ClientInfo.Activity.GameMode,
+                            Map = ClientContext.Activity.Map,
+                            MapSha256 = ClientContext.Activity.MapSHA256,
+                            Mods = ClientContext.Activity.Mods,
+                            Gamemode = ClientContext.Activity.GameMode,
                             MapId = 0,
                         }
                     }
@@ -73,8 +73,8 @@
             {
                 packet = new ()
                 {
-                    UserID = (int)ClientInfo.User!.UserID,
-                    Username = ClientInfo.User.Username,
+                    UserID = (int)ClientContext.User!.UserID,
+                    Username = ClientContext.User.Username,
                     AvatarFilename = "old.jpg",
                     Timezone = 0,
                     Location = "Poopoo",
@@ -83,17 +83,17 @@
                     Playcount = 0,
                     Accuracy = 0 / 100f,
                     Rank = 0,
-                    Privileges = (byte)ClientInfo.Presence.Privilege,
+                    Privileges = (byte)ClientContext.Presence.Privilege,
                     BStatusUpdate = new Packet.Out.B904.bStatusUpdate
                     {
-                        bStatus = ClientInfo.Activity!.Status,
+                        bStatus = ClientContext.Activity!.Status,
                         BeatmapUpdate = new Packet.Out.B904.BeatmapUpdate
                         {
-                            Map = ClientInfo.Activity.Map,
-                            MapSha256 = ClientInfo.Activity.MapSHA256,
-                            Mods = ClientInfo.Activity.Mods,
-                            Gamemode = ClientInfo.Activity.GameMode,
-                            MapId = ClientInfo.Activity.MapID,
+                            Map = ClientContext.Activity.Map,
+                            MapSha256 = ClientContext.Activity.MapSHA256,
+                            Mods = ClientContext.Activity.Mods,
+                            Gamemode = ClientContext.Activity.GameMode,
+                            MapId = ClientContext.Activity.MapID,
                         }
                     }
                 };
