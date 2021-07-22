@@ -7,8 +7,8 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(Client client)
         {
-            client.Server.BroadcastPacket(new BanchoPacket(
-                new UserQuit { UserID = (int)client.ClientContext!.User.UserID })
+            await client.Server.BroadcastPacketAsync(new BanchoPacket(
+                new UserQuit { UserID = (int)await client.GetUserID() })
             );
         }
     }

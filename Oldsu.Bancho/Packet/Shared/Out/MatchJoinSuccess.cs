@@ -9,7 +9,6 @@ namespace Oldsu.Bancho.Packet.Shared.Out
         
         public IB904PacketOut Into()
         {
-            using var slots = Match.Slots;
             
             return new Packet.Out.B904.MatchJoinSuccess
             {
@@ -25,9 +24,9 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                     InProgress = Match.InProgress,
                     PlayMode = Match.PlayMode,
                     ScoringType = Match.ScoringType,
-                    SlotStatus = slots.Select(slot => slot.SlotStatus).ToArray(),
-                    SlotTeams = slots.Select(slot => slot.SlotTeam).ToArray(),
-                    SlotIDs = slots.Select(slot => ((int?)slot.Client?.UserID) ?? -1).ToArray(),
+                    SlotStatus = Match.MatchSlots.Select(slot => slot.SlotStatus).ToArray(),
+                    SlotTeams = Match.MatchSlots.Select(slot => slot.SlotTeam).ToArray(),
+                    SlotIDs = Match.MatchSlots.Select(slot => slot.SlotId).ToArray(),
                     TeamType = Match.TeamType,
                     HostID = Match.HostID,
                     MatchID = Match.MatchID

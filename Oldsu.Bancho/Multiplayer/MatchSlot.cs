@@ -7,6 +7,7 @@ namespace Oldsu.Bancho.Multiplayer
     {
         public SlotStatus SlotStatus { get; set; }
         public SlotTeams SlotTeam { get; set; }
+        public int SlotId { get; set; }
         public Client? Client { get; set; }
         
         public bool Loaded { get; set; }
@@ -23,6 +24,7 @@ namespace Oldsu.Bancho.Multiplayer
             SlotStatus = SlotStatus.Open;
             SlotTeam = SlotTeams.Neutral;
             Client = null;
+            SlotId = -1;
         }
         
         public void Move(ref MatchSlot newSlot)

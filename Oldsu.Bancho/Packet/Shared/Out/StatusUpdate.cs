@@ -1,11 +1,13 @@
 ﻿using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Packet.Out.B394A;
+using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
     public struct StatusUpdate : ISharedPacketOut, Into<IB394APacketOut>, Into<IB904PacketOut>
     {
         public ClientContext ClientInfo { get; init; }
+        
         public Completeness Completeness { get; init; }
 
         #region b394a
