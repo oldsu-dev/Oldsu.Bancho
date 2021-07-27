@@ -11,6 +11,7 @@ using Fleck;
 using MaxMind.Db;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Out.Generic;
@@ -119,10 +120,11 @@ namespace Oldsu.Bancho
             }
         }
     }
-    
+
     public class MultiplayerContext
     {
-        //Todo
+        public Match Match { get; set; }
+        public MatchSlot MatchSlot { get; set; }
     }
 
     /// <summary>
