@@ -12,57 +12,47 @@ namespace Oldsu.Bancho.Multiplayer
     {
         public const int MatchesAvailable = 256;
         
-        private readonly Dictionary<uint, Client> _clientsInLobby = new();
+        private readonly Dictionary<uint, OnlineUser> _clientsInLobby = new();
+        private readonly AsyncRwLockWrapper<Match?>[] _matches = new AsyncRwLockWrapper<Match?>[MatchesAvailable];
 
-        private AsyncRwLockWrapper<Match>?[] _matches = new AsyncRwLockWrapper<Match>?[MatchesAvailable];
-
-        public Server Server { get; }
-        
-        public Lobby(Server server)
+        public Lobby()
         {
-            Server = server;
+            for (int i = 0; i < MatchesAvailable; i++)
+                _matches[i] = new AsyncRwLockWrapper<Match?>();
         }
         
-        public bool RegisterMatch(Match match, out AsyncRwLockWrapper<Match> matchWrapper)
+        public async Task<AsyncRwLockWrapper<Match>?> RegisterMatchAsync(Match match)
         {
-            matchWrapper = new AsyncRwLockWrapper<Match>(match);
-            
             for (byte i = 0; i <= (MatchesAvailable - 1); i++)
-                if (_matches[i] == null)
+                if (_matches[i].IsNull)
                 {
-                    _matches[i] = matchWrapper;
+                    await _matches[i].SetValueAsync(match);
                     match.MatchID = i;
-                    return true;
+                    return _matches[i]!;
                 }
 
-            return false;
+            return null;
         }
 
-        public async Task<bool> DisbandMatch(int id, int clientId)
+        public async Task<bool> DisbandMatchAsync(int id, OnlineUser self)
         {
-            if (_matches[id] == null || clientId != await _matches[id]!.ReadAsync(host => host.HostID)) 
+            if (self.UserInfo.UserID != await _matches[id].ReadAsync(match => match?.HostID ?? null)) 
                 return false;
             
-            _matches[id] = null;
+            await _matches[id].SetValueAsync(null);
             return true;
         }
         
-        public async Task AddPlayerAsync(Client client)
-        {
-            _clientsInLobby.TryAdd(await client.GetUserID(), client);
-        }
+        public void AddPlayer(OnlineUser self) =>
+            _clientsInLobby.TryAdd(self.UserInfo.UserID, self);
 
-        public async Task RemovePlayerAsync(Client client)
-        {
-            _clientsInLobby.Remove(await client.GetUserID(), out _);
-        }
+        public void RemovePlayer(OnlineUser self) =>
+            _clientsInLobby.Remove(self.UserInfo.UserID);
 
         public void BroadcastPacketToPlayersInLobby(BanchoPacket packet)
         {
             foreach (var client in _clientsInLobby.Values)
-            {
-                client.SendPacket(packet);
-            }
+                client.Connection.SendPacket(packet);
         }
     }
 }

@@ -7,15 +7,19 @@ namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class UserStatsRequest : ISharedPacketIn
     {
-        public async Task Handle(Client client)
+        public async Task Handle(OnlineUser self)
         {
-            await client.ClientContext!.ReadAsync(async context =>
-            {
-                await client.SendPacketAsync(new BanchoPacket(
-                    new StatusUpdate { ClientInfo = context, Completeness = Completeness.Self })
-                );
-            });
-
+            using var statsLock = await self.Stats.AcquireReadLockGuard();
+            using var activityLock = await self.Activity.AcquireReadLockGuard();
+            
+            await self.Connection.SendPacketAsync(new BanchoPacket(
+                new StatusUpdate
+                {
+                    Stats = ~statsLock, Activity = ~activityLock, 
+                    Presence = self.Presence, User = self.UserInfo,
+                    Completeness = Completeness.Self
+                })
+            );
         }
     }
 }

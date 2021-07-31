@@ -26,7 +26,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                     ScoringType = Match.ScoringType,
                     SlotStatus = Match.MatchSlots.Select(slot => slot.SlotStatus).ToArray(),
                     SlotTeams = Match.MatchSlots.Select(slot => slot.SlotTeam).ToArray(),
-                    SlotIDs = Match.MatchSlots.Select(slot => slot.SlotId).ToArray(),
+                    SlotIDs = Match.MatchSlots.Select(slot => (int?)slot.User?.UserInfo.UserID ?? -1).ToArray(),
                     TeamType = Match.TeamType,
                     HostID = Match.HostID,
                     MatchID = Match.MatchID

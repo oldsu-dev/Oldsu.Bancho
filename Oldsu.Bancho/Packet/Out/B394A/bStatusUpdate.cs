@@ -3,7 +3,7 @@
     public struct BeatmapUpdate
     {
         [BanchoSerializable] public string Map;
-        [BanchoSerializable] public string MapSha256;
+        [BanchoSerializable] public string MapMD5;
         [BanchoSerializable] public ushort Mods;
     }
     

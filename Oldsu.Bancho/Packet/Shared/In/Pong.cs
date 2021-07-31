@@ -5,9 +5,9 @@ namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class Pong : ISharedPacketIn
     {
-        public async Task Handle(Client client)
+        public async Task Handle(OnlineUser client)
         {
-            await client.SendPacketAsync(new BanchoPacket(new Ping()));
+            await client.Connection.SendPacketAsync(new BanchoPacket(new Ping()));
         }
     }
 }

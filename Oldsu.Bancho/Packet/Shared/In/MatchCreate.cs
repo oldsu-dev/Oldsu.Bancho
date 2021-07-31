@@ -6,25 +6,33 @@ namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class MatchCreate : ISharedPacketIn
     {
-        public string GameName { get; set; }
-        public string GamePassword { get; set; }
-        public string BeatmapName { get; set; }
-        public string BeatmapChecksum { get; set; }
-        public int BeatmapID { get; set; }
+        public string GameName { get; init; }
+        public string GamePassword { get; init; }
+        public string BeatmapName { get; init; }
+        public string BeatmapChecksum { get; init; }
+        public int BeatmapID { get; init; }
         
-        public async Task Handle(Client client)
+        public async Task Handle(OnlineUser self)
         {
-            Match match = new Match(GameName, GamePassword, BeatmapID, BeatmapName, BeatmapChecksum);
-            _ = match.TryJoin(client, GamePassword);
+            if (self.MatchMediator != null)
+                return;
+            
+            var match = new Match(GameName, GamePassword, BeatmapID, BeatmapName, BeatmapChecksum);
+            var slotId = match.TryJoin(self, GamePassword)!.Value;
 
-            match.HostID = (int)await client.GetUserID();
-
-            await client.Server.MultiplayerLobby.WriteAsync(async lobby =>
+            await self.ServerMediator.Lobby.WriteAsync(async lobby =>
             {
-                if (lobby.RegisterMatch(match, out var matchWrapper))
+                var matchWrapper = await lobby.RegisterMatchAsync(match);
+                
+                if (matchWrapper != null)
                 {
-                    await client.ClientContext!.WriteAsync(context => context.MultiplayerContext.Match = matchWrapper);
-                    await client.SendPacketAsync(new BanchoPacket(new MatchJoinSuccess { Match = match }));
+                    self.MatchMediator = new Match.Mediator
+                    {
+                        CurrentMatch = matchWrapper,
+                        CurrentSlot = slotId
+                    };
+                    
+                    await self.Connection.SendPacketAsync(new BanchoPacket(new MatchJoinSuccess { Match = match }));
                 }
             });
         }
