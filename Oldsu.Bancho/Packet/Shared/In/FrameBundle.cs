@@ -1,4 +1,5 @@
 ﻿using System.Threading.Tasks;
+using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -6,12 +7,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public byte[] Frames { get; init; }
         
-        public async Task Handle(Client client)
-        {
-            client.ClientContext?.SpectatorContext.BroadcastFrames( new Out.FrameBundle
-            {
-                Frames = Frames
-            });
-        }
+        public async Task Handle(OnlineUser self) =>
+            await self.BroadcastPacketToSpectators(new BanchoPacket(new Out.FrameBundle {Frames = Frames}));
     }
 }

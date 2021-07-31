@@ -7,14 +7,17 @@ namespace Oldsu.Bancho.Packet.Shared.In
         public string Contents { get; init; }
         public string Target { get; init; }
         
-        public async Task Handle(Client client)
+        public async Task Handle(OnlineUser self)
         {
-            client.Server.SendPacketToSpecificUser(new BanchoPacket(new Out.SendMessage
+            await self.ServerMediator.Users.ReadAsync(users =>
             {
-                Sender = client.ClientContext!.User.Username,
-                Contents = Contents,
-                Target = Target
-            }), Target);
+                users.SendPacketToSpecificUser(new BanchoPacket(new Out.SendMessage
+                {
+                    Sender = self.UserInfo.Username,
+                    Contents = Contents,
+                    Target = Target
+                }), Target);
+            });
         }
     }
 }

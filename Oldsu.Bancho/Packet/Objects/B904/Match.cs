@@ -1,27 +1,60 @@
-﻿using Oldsu.Bancho.Multiplayer.Enums;
+﻿using System;
+using System.IO;
+using System.Security.Permissions;
+using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Enums;
 using Oldsu.Multiplayer.Enums;
-using MatchType = System.IO.MatchType;
+using MatchType = Oldsu.Bancho.Multiplayer.Enums.MatchType;
 
 namespace Oldsu.Bancho.Packet.Objects.B904
 {
-    public class Match
+    public class SlotIDsSerializer : IBanchoCustomSerializer
     {
-        [BanchoSerializable] public byte MatchID { get; set; }
-        [BanchoSerializable] public bool InProgress { get; set; }
-        [BanchoSerializable] public MatchType MatchType { get; set; }
-        [BanchoSerializable] public short ActiveMods { get; set; }
-        [BanchoSerializable] public string GameName { get; set; }
-        [BanchoSerializable] public string GamePassword { get; set; }
-        [BanchoSerializable] public string BeatmapName { get; set; }
-        [BanchoSerializable] public int BeatmapID { get; set; }
-        [BanchoSerializable] public string BeatmapChecksum { get; set; }
-        [BanchoSerializable(arrayElementCount: 8)] public SlotStatus[] SlotStatus { get; set; }
-        [BanchoSerializable(arrayElementCount: 8)] public SlotTeams[] SlotTeams { get; set; } 
-        [BanchoSerializable(arrayElementCount: 8)] public int[] SlotIDs { get; set; }
-        [BanchoSerializable] public int HostID { get; set; }
-        [BanchoSerializable] public Mode PlayMode { get; set; }
-        [BanchoSerializable] public MatchScoringTypes ScoringType { get; set; }
-        [BanchoSerializable] public MatchTeamTypes TeamType { get; set; }
+        public void Serialize(object self, object instance, BinaryWriter writer)
+        {
+            int[] ids = (int[])self;
+            Match match = (Match)instance;
+
+            for (int i = 0; i < match.SlotStatus.Length; i++)
+                if ((match.SlotStatus[i] & Oldsu.Multiplayer.Enums.SlotStatus.HasPlayer) > 0)
+                    writer.Write(ids[i]);
+        }
+
+        public object Deserialize(object instance, BinaryReader reader)
+        {
+            Match match = (Match)instance;
+            int[] ids = new int[8];
+
+            for (int i = 0; i < match.SlotStatus.Length; i++)
+                ids[i] = (match.SlotStatus[i] & Oldsu.Multiplayer.Enums.SlotStatus.HasPlayer) > 0
+                    ? reader.ReadInt32()
+                    : -1;
+
+            return ids;
+        }
+    }    
+    
+    public struct Match
+    {
+        [BanchoSerializable] public byte MatchID;
+        [BanchoSerializable] public bool InProgress;
+        [BanchoSerializable] public MatchType MatchType;
+        [BanchoSerializable] public short ActiveMods;
+        [BanchoSerializable] public string GameName;
+        [BanchoSerializable] public string GamePassword;
+        [BanchoSerializable] public string BeatmapName;
+        [BanchoSerializable] public int BeatmapID;
+        [BanchoSerializable] public string BeatmapChecksum;
+        [BanchoSerializable(arrayElementCount: 8)] public SlotStatus[] SlotStatus;
+        [BanchoSerializable(arrayElementCount: 8)] public SlotTeams[] SlotTeams;
+        
+        [BanchoCustomSerializer(typeof(SlotIDsSerializer))]
+        [BanchoSerializable] 
+        public int[] SlotIDs;
+
+        [BanchoSerializable] public int HostID;
+        [BanchoSerializable] public Mode PlayMode;
+        [BanchoSerializable] public MatchScoringTypes ScoringType;
+        [BanchoSerializable] public MatchTeamTypes TeamType;
     }
 }

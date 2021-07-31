@@ -13,14 +13,26 @@ namespace Oldsu.Bancho.Packet.In.B394a
         {
             var userActivity = new UserActivity();
 
-            userActivity.Status = bStatusUpdate.bStatus;
-            userActivity.GameMode = 0;
-            userActivity.MapID = 0;
-        
-            userActivity.Map = bStatusUpdate.BeatmapUpdate?.Map ?? "";
-            userActivity.MapSHA256 = bStatusUpdate.BeatmapUpdate?.Map ?? "";
-            userActivity.Mods = bStatusUpdate.BeatmapUpdate?.Mods ?? 0;
-            
+            if (bStatusUpdate.BeatmapUpdate is {} beatmapUpdate)
+            {
+                userActivity.Activity = new ActivityWithBeatmap
+                {
+                    Action = (Action) bStatusUpdate.bStatus,
+                    GameMode = 0,
+                    Map = beatmapUpdate.Map,
+                    Mods = beatmapUpdate.Mods,
+                    MapID = 0,
+                    MapMD5 = beatmapUpdate.MapMD5
+                };
+            }
+            else
+            {
+                userActivity.Activity = new Activity
+                {
+                    Action = (Action) bStatusUpdate.bStatus
+                };
+            }
+
             return userActivity;
         }
     }

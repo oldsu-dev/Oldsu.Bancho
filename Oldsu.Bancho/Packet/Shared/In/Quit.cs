@@ -5,11 +5,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class Quit : ISharedPacketIn
     {
-        public async Task Handle(Client client)
+        public async Task Handle(OnlineUser self)
         {
-            client.Server.BroadcastPacket(new BanchoPacket(
-                new UserQuit { UserID = (int)client.ClientContext!.User.UserID })
-            );
+            await self.ServerMediator.Users.ReadAsync(users =>
+                users.BroadcastPacket(new BanchoPacket(
+                    new UserQuit {UserID = (int) self.UserInfo.UserID})
+                ));
         }
     }
 }
