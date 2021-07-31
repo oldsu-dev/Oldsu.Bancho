@@ -5,21 +5,21 @@ namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class MatchChangeSettings : ISharedPacketIn
     {
-        public string GameName { get; set; }
-        public string GamePassword { get; set; }
-        public string BeatmapName { get; set; }
-        public string BeatmapChecksum { get; set; }
-        public int BeatmapID { get; set; }
-        public MatchType MatchType { get; set; }
-        public short ActiveMods { get; set; }
+        public string GameName { get; init; }
+        public string GamePassword { get; init; }
+        public string BeatmapName { get; init; }
+        public string BeatmapChecksum { get; init; }
+        public int BeatmapID { get; init; }
+        public MatchType MatchType { get; init; }
+        public short ActiveMods { get; init; }
         
-        public async Task Handle(Client client)
+        public async Task Handle(OnlineUser self)
         {
-            await client.ClientContext!.ReadAsync(async context =>
+            if (self.MatchMediator is {} matchMediator)
             {
-                await context.MultiplayerContext.Match!.WriteAsync(match =>
+                await matchMediator.CurrentMatch.WriteAsync(match =>
                 {
-                    if (match.HostID != context.User.UserID)
+                    if (match.HostID != self.UserInfo.UserID)
                         return;
 
                     match.ActiveMods = ActiveMods;
@@ -30,7 +30,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     match.GamePassword = GamePassword;
                     match.GameName = GameName;
                 });
-            });
+            }
         }
     }
 }

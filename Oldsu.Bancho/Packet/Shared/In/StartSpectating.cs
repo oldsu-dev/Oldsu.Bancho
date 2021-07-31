@@ -7,19 +7,23 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public int UserID { get; set; }
         
-        public async Task Handle(Client client)
+        public async Task Handle(OnlineUser self)
         {
-            await client.Server.AuthenticatedClients.ReadAsync(async clients =>
+            OnlineUser host = null;
+            
+            if (!await self.ServerMediator.Users.ReadAsync(
+                users => users.TryGetValue((uint) UserID, out host)))
             {
-                if (clients.TryGetValue((uint)UserID, out var host) &&
-                    await client.StartSpectating(host))
+                return;
+            }
+            
+            if (await self.StartSpectatingAsync(host!))
+            {
+                await host!.Connection.SendPacketAsync(new BanchoPacket(new HostSpectatorJoined()
                 {
-                    await host.SendPacketAsync(new BanchoPacket(new HostSpectatorJoined()
-                    {
-                        UserID = (int)await client.GetUserID(),
-                    }));
-                }
-            });
+                    UserID = (int)self.UserInfo.UserID
+                }));
+            }
         }
     }
 }
