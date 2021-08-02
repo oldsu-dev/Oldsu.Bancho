@@ -7,9 +7,18 @@ namespace Oldsu.Bancho.Packet.Shared.Out
     {
         public User User { get; init; }
         public Presence Presence { get; init; }
-        public Stats? Stats { get; init; }
+        public StatsWithRank? Stats { get; init; }
         public Activity Activity { get; init; }
 
+        public static SetPresence FromUserData(UserData userData) =>
+            new SetPresence
+            {
+                Activity = userData.Activity,
+                Presence = userData.Presence,
+                Stats = userData.Stats,
+                User = userData.UserInfo
+            };
+        
         IB394APacketOut Into<IB394APacketOut>.Into()
         {
             Packet.Out.B394A.HandleOsuUpdateOnlineUser packet;

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Security.Permissions;
+using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Enums;
 using Oldsu.Multiplayer.Enums;
@@ -36,6 +37,23 @@ namespace Oldsu.Bancho.Packet.Objects.B904
     
     public struct Match
     {
+        public MatchSettings ToMatchSettings()
+        {
+            return new MatchSettings
+            {
+                ActiveMods = ActiveMods,
+                BeatmapChecksum = BeatmapChecksum,
+                BeatmapName = BeatmapChecksum,
+                GameName = GameName,
+                GamePassword = GamePassword,
+                MatchType = MatchType,
+                PlayMode = PlayMode,
+                ScoringType = ScoringType,
+                TeamType = TeamType,
+                BeatmapID = BeatmapID
+            };
+        }
+        
         [BanchoSerializable] public byte MatchID;
         [BanchoSerializable] public bool InProgress;
         [BanchoSerializable] public MatchType MatchType;

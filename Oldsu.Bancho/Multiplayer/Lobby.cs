@@ -13,20 +13,14 @@ namespace Oldsu.Bancho.Multiplayer
         public const int MatchesAvailable = 256;
         
         private readonly Dictionary<uint, OnlineUser> _clientsInLobby = new();
-        private readonly AsyncRwLockWrapper<Match?>[] _matches = new AsyncRwLockWrapper<Match?>[MatchesAvailable];
+        private readonly AsyncRwLockWrapper<Match>?[] _matches = new AsyncRwLockWrapper<Match>?[MatchesAvailable];
 
-        public Lobby()
-        {
-            for (int i = 0; i < MatchesAvailable; i++)
-                _matches[i] = new AsyncRwLockWrapper<Match?>();
-        }
-        
-        public async Task<AsyncRwLockWrapper<Match>?> RegisterMatchAsync(Match match)
+        public AsyncRwLockWrapper<Match>? RegisterMatch(Match match)
         {
             for (byte i = 0; i <= (MatchesAvailable - 1); i++)
-                if (_matches[i].IsNull)
+                if (_matches[i] == null)
                 {
-                    await _matches[i].SetValueAsync(match);
+                    _matches[i] = new AsyncRwLockWrapper<Match>();
                     match.MatchID = i;
                     return _matches[i]!;
                 }
@@ -34,12 +28,12 @@ namespace Oldsu.Bancho.Multiplayer
             return null;
         }
 
-        public async Task<bool> DisbandMatchAsync(int id, OnlineUser self)
+        public void DisbandMatch(int id)
         {
-            if (self.UserInfo.UserID != await _matches[id].ReadAsync(match => match?.HostID ?? null)) 
+            if (_matches[id] != null)
                 return false;
             
-            await _matches[id].SetValueAsync(null);
+            _matches[id] = null;
             return true;
         }
         
@@ -48,8 +42,8 @@ namespace Oldsu.Bancho.Multiplayer
 
         public void RemovePlayer(OnlineUser self) =>
             _clientsInLobby.Remove(self.UserInfo.UserID);
-
-        public void BroadcastPacketToPlayersInLobby(BanchoPacket packet)
+        
+        public void BroadcastPacket(BanchoPacket packet)
         {
             foreach (var client in _clientsInLobby.Values)
                 client.Connection.SendPacket(packet);

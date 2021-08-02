@@ -12,13 +12,7 @@ namespace Oldsu.Bancho.Packet.In.B904
         {
             return new Shared.In.MatchChangeSettings
             {
-                GamePassword = Match.GamePassword,
-                BeatmapChecksum = Match.BeatmapChecksum,
-                BeatmapName = Match.BeatmapName,
-                GameName = Match.GameName,
-                BeatmapID = Match.BeatmapID,
-                ActiveMods = Match.MatchID,
-                MatchType = Match.MatchType
+                MatchSettings = Match.ToMatchSettings()
             };
         }
     }

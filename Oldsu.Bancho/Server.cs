@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -8,48 +9,49 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
 using MaxMind.Db;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
-using Oldsu.Bancho.Collections;
+using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Handshakes;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Enums;
 using Oldsu.Types;
 using Oldsu.Utils;
 using Oldsu.Utils.Threading;
+using Action = Oldsu.Enums.Action;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
 {
     public class Server
     {
-        public struct Mediator
-        {
-            public AsyncRwLockWrapper<OnlineUserStore> Users { get; init; }
-            public AsyncRwLockWrapper<Lobby> Lobby { get; init;  }
-        }
-        
         private readonly WebSocketServer _server;
 
-        private AsyncRwLockWrapper<OnlineUserStore> _users { get; }
         private AsyncRwLockWrapper<Dictionary<Guid, Connection>> _connections { get; }
-        private AsyncRwLockWrapper<Lobby> _multiplayerLobby { get; }
 
         private async Task PingWatchdog(CancellationToken ct = default)
         {
             for (;;)
             {
-                ct.ThrowIfCancellationRequested();
+                if (ct.IsCancellationRequested)
+                    return;
 
                 await _connections.ReadAsync(connections =>
                 {
                     foreach (var conn in connections.Values.Where(c => c.PingTimeout))
                     {
                         Console.WriteLine($"{conn.ConnectionInfo.Host} timed out (${conn.GetType()}).");
-                        conn.Disconnect();
+
+                        if (conn.IsZombie)
+                            conn.ForceDisconnect();
+                        else
+                            conn.Disconnect();
                     }
                 });
-                
+
                 await Task.Delay(1000, ct);
             }
         }
@@ -58,24 +60,26 @@ namespace Oldsu.Bancho
         ///     Initializes the websocket class
         /// </summary>
         /// <param name="address">Address to bind server to. Example: ws://127.0.0.1:3000</param>
-        public Server(string address)
+        public Server(string address, IUserDataProvider userDataProvider)
         {
             _server = new WebSocketServer(address);
+            _connections = new AsyncRwLockWrapper<Dictionary<Guid, Connection>>();
 
-            _connections = new AsyncRwLockWrapper<Dictionary<Guid, Connection>>(new Dictionary<Guid, Connection>());
-            _multiplayerLobby = new AsyncRwLockWrapper<Lobby>(new Lobby());
-            _users = new AsyncRwLockWrapper<OnlineUserStore>(new OnlineUserStore());
+            _userDataProvider = userDataProvider;
         }
 
-        private static Version GetProtocol(string clientBuild) => clientBuild switch {
+        private IUserDataProvider _userDataProvider;
+
+        private static Version GetProtocol(string clientBuild) => clientBuild switch
+        {
             "1520" => Version.B394A,
             "2000" => Version.B904,
             _ => Version.NotApplicable,
         };
-        
+
         private static readonly ConcurrentDictionary<string, GeoLoc> GeoLocCache = new();
         private static readonly Reader IpLookupDatabase = new("GeoLite2-City.mmdb", FileAccessMode.Memory);
-        
+
         private static async Task<(float, float)> GetGeolocationAsync(string ip)
         {
             if (ip == "127.0.0.1")
@@ -105,27 +109,31 @@ namespace Oldsu.Bancho
         private async Task<(LoginResult, User?, Version)> Authenticate(string authString)
         {
             var authFields = authString.Split().Select(s => s.Trim()).ToArray();
+            
+            if (authFields.Length != 3)
+                return (LoginResult.TooOldVersion, null, Version.NotApplicable);
+                
             var (loginUsername, loginPassword, info) =
                 (authFields[0], authFields[1], authFields[2]);
-
+        
             var version = GetProtocol(info.Split("|")[0]);
-#if DEBUG
-            //Console.WriteLine(info);
-#endif
+
             if (version == Version.NotApplicable)
                 return (LoginResult.TooOldVersion, null, version);
-            
+
             await using var db = new Database();
-            var user = await db.Authenticate(loginUsername, loginPassword);
+            var user = await db.AuthenticateAsync(loginUsername, loginPassword);
 
             if (user == null)
+            {
                 return (LoginResult.AuthenticationFailed, null, version);
-            
+            }
+
             if (user.Banned)
                 return (LoginResult.Banned, null, version);
 
             // user is found, user is not banned, client is not too old. Everything is fine.
-            return (LoginResult.AuthenticationSuccessful, user, version);
+                return (LoginResult.AuthenticationSuccessful, user, version);
         }
 
         private async Task<Presence> GetPresenceAsync(User user, string ip)
@@ -136,29 +144,25 @@ namespace Oldsu.Bancho
             {
                 Privilege = user!.Privileges,
                 UtcOffset = 0,
-                Country = 0,
+                Country = user!.Country,
                 Longitude = locationX,
                 Latitude = locationY
             };
         }
 
-        private async void HandleDisconnection(object? sender, EventArgs _eventArgs)
+        private async void HandleDisconnection(object? sender, EventArgs eventArgs)
         {
             var conn = (Connection) sender!;
             
-            Console.WriteLine($"{conn.ConnectionInfo.Host} disconnected. (${conn.GetType()}).");
+            Debug.WriteLine($"{conn.ConnectionInfo.Host} disconnected. (${conn.GetType()}).");
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
-        }
-        
-        private async void HandleUserLeave(object? sender, EventArgs _eventArgs)
-        {
-            var user = (OnlineUser) sender!;
+
+            if (conn is AuthenticatedConnection authenticatedConnection)
+                await _userDataProvider.UnregisterUserAsync(authenticatedConnection.ConnectedUserContext.UserID);
             
-            Console.WriteLine($"{user.UserInfo.Username} left.");
-            await _users.WriteAsync(users => 
-                users.TryRemove(user.UserInfo.Username, user.UserInfo.UserID, out _));
+            conn.Dispose();
         }
-        
+
         private async void HandleConnection(IWebSocketConnection webSocketConnection)
         {
             var guid = Guid.NewGuid();
@@ -188,30 +192,32 @@ namespace Oldsu.Bancho
                 connection.ConnectionInfo.Headers.TryGetValue("X-Forwaded-For", out var ip) ?
                     ip : connection.ConnectionInfo.ClientIpAddress);
 
-            var upgradedConnection = connection.Upgrade(version);
+            using var connections = await _connections.AcquireWriteLockGuard();
+
+            await using (Database database = new Database())
+            {
+                await _userDataProvider.RegisterUserAsync(userInfo!.UserID,
+                    new UserData
+                    {
+                        Activity = new Activity {Action = Action.Idle},
+                        Presence = presence,
+                        Stats = await database.GetStatsWithRankAsync(userInfo.UserID, 0),
+                        UserInfo = userInfo!
+                    });
+            }
+
+            var upgradedConnection = connection.Upgrade(version, 
+                new UserContext(userInfo.UserID, userInfo.Username, _userDataProvider));
             
             // Update connection object
-            await _connections.WriteAsync(connections =>
-                connections[upgradedConnection.Guid] = upgradedConnection);
-            
+            (~connections)[upgradedConnection.Guid] = upgradedConnection;
             upgradedConnection.Disconnected += HandleDisconnection;
             
-            var user = new OnlineUser(
-                new Mediator { Users = _users, Lobby = _multiplayerLobby }, upgradedConnection
-                , userInfo!, presence, null);
-
-            
-            user.Left += HandleUserLeave;
-
-            await _users.WriteAsync(users =>
-            {
-                if (users.TryRemove(user.UserInfo.Username, user.UserInfo.UserID, out var oldUser))
-                    oldUser.Connection.Disconnect();
-
-                users.TryAdd(user.UserInfo.Username, user.UserInfo.UserID, user);
-            });
-
-            await user.HandshakeAsync();
+            upgradedConnection.SendHandshake(
+                new CommonHandshake(
+                    await _userDataProvider.GetAllUsersAsync(),
+                    userInfo.UserID,
+                    presence.Privilege));
         }
 
         /// <summary>

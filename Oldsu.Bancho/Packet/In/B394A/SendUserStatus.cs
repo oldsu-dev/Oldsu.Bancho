@@ -2,7 +2,7 @@
 using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Enums;
 
-namespace Oldsu.Bancho.Packet.In.B394a
+namespace Oldsu.Bancho.Packet.In.B394A
 {
     [BanchoPacket(0, Version.B394A, BanchoPacketType.In)]
     public struct SendUserStatus : Into<ISharedPacketIn>

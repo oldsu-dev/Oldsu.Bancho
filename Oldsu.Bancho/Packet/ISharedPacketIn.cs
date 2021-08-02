@@ -4,6 +4,6 @@ namespace Oldsu.Bancho.Packet
 {
     public interface ISharedPacketIn
     {
-        public Task Handle(OnlineUser self);
+        public Task Handle(ConnectedUserContext connection);
     }
 }

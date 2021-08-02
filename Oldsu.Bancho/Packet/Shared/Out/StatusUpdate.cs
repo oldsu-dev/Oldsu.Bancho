@@ -5,9 +5,19 @@ namespace Oldsu.Bancho.Packet.Shared.Out
 {
     public struct StatusUpdate : ISharedPacketOut, Into<IB904PacketOut>
     {
+        public static StatusUpdate FromUserData(UserData userData, Completeness completeness) =>
+            new StatusUpdate
+            {
+                Activity = userData.Activity,
+                Completeness = completeness,
+                Presence = userData.Presence,
+                Stats = userData.Stats,
+                User = userData.UserInfo
+            };
+
         public User User { get; init; }
         public Presence Presence { get; init; }
-        public Stats? Stats { get; init; }
+        public StatsWithRank? Stats { get; init; }
         public Activity Activity { get; init; }
         
         public Completeness Completeness { get; init; }
@@ -139,7 +149,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                         TotalScore = (long)Stats.TotalScore,
                         Playcount = (int)Stats.Playcount,
                         Accuracy = (Stats.Accuracy / 100f),
-                        Rank = 0,
+                        Rank = Stats.Rank,
                         BStatusUpdate = new Packet.Out.B904.bStatusUpdate
                         {
                             bStatus = (byte)Activity.Action,
