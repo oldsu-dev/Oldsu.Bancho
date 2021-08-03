@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 using Oldsu.Enums;
 using Oldsu.Types;
 using Oldsu.Utils;
@@ -12,76 +13,43 @@ using Oldsu.Utils.Threading;
 
 namespace Oldsu.Bancho.Providers.InMemory
 {
-    public class InMemoryUserDataProvider : IUserDataProvider
+    public class InMemoryUserStateProvider : InMemoryObservable<ProviderEvent>, IUserStateProvider
     {
-        private readonly AsyncRwLockWrapper<Dictionary<uint, UserData>> _wrapper;
         private readonly AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>> _observers;
+        private readonly AsyncRwLockWrapper<Dictionary<uint, UserData>> _wrapper;
 
-        public InMemoryUserDataProvider()
+        public InMemoryUserStateProvider()
         {
-            _wrapper = new AsyncRwLockWrapper<Dictionary<uint, UserData>>();
             _observers = new AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>>();
+            _wrapper = new AsyncRwLockWrapper<Dictionary<uint, UserData>>();
         }
-        
-        public async Task<IAsyncDisposable> SubscribeAsync(IAsyncObserver<BanchoPacket> observer)
-        {
-            return await _observers.WriteAsync(observers =>
-            {
-                observers.Add(observer);
-                return new BanchoPacketUnsubscriber(_observers, observer);;
-            });
-        }
-
-        private class BanchoPacketUnsubscriber : IAsyncDisposable
-        {
-            private readonly AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>> _observers;
-            private readonly IAsyncObserver<BanchoPacket> _observer;
-
-            public BanchoPacketUnsubscriber(
-                AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>> observers, 
-                IAsyncObserver<BanchoPacket> observer)
-            {
-                this._observers = observers;
-                this._observer = observer;
-            }
-
-            private volatile bool _disposing = false;
-
-            public async ValueTask DisposeAsync()
-            {
-                if (_disposing)
-                    return;
-
-                _disposing = true;
-
-                await _observers.WriteAsync(observers =>
-                {
-                    if (observers.Contains(_observer)) 
-                        observers.Remove(_observer);
-                });
-            }
-        }
-
-        private Task NotifyObservers(BanchoPacket packet) =>
-            _observers.ReadAsync(observers =>
-                observers.ForEach(observer => observer.OnNextAsync(packet)));
 
         public async Task RegisterUserAsync(uint userId, UserData data)
         {
-            var newData = await _wrapper.WriteAsync(users =>
+            await _wrapper.WriteAsync(async users =>
             {
+                await Notify(new ProviderEvent {
+                    ProviderType = ProviderType.UserState,
+                    DataType = ProviderEventType.BanchoPacket,
+                    Data = new BanchoPacket(SetPresence.FromUserData((UserData)data.Clone()))
+                });
+                
+                if (users.ContainsKey(userId))
+                    return;
+                
                 users.Add(userId, data);
-                return (UserData)data.Clone();
             });
-
-            await NotifyObservers(new BanchoPacket(SetPresence.FromUserData(newData)));
         }
 
         public async Task UnregisterUserAsync(uint userId)
         {
             await _wrapper.WriteAsync(users => users.Remove(userId));
             
-            await NotifyObservers(new BanchoPacket(new UserQuit {UserID = (int)userId}));
+            await Notify(new ProviderEvent {
+                ProviderType = ProviderType.UserState,
+                DataType = ProviderEventType.BanchoPacket,
+                Data = new BanchoPacket(new UserQuit {UserID = (int)userId})
+            });
         }
 
         public Task<IEnumerable<UserData>> GetAllUsersAsync() =>
@@ -95,8 +63,11 @@ namespace Oldsu.Bancho.Providers.InMemory
                 return (UserData)users[userId].Clone();
             });
 
-            await NotifyObservers(new BanchoPacket(
-                StatusUpdate.FromUserData(newData, Completeness.Self)));
+            await Notify(new ProviderEvent {
+                ProviderType = ProviderType.UserState,
+                DataType = ProviderEventType.BanchoPacket,
+                Data = new BanchoPacket(StatusUpdate.FromUserData(newData, Completeness.Self))
+            });
         }
 
         public async Task SetStatsAsync(uint userId, StatsWithRank? stats)
@@ -107,8 +78,11 @@ namespace Oldsu.Bancho.Providers.InMemory
                 return (UserData)users[userId].Clone();
             });
 
-            await NotifyObservers(new BanchoPacket(
-                StatusUpdate.FromUserData(newData, Completeness.Self)));
+            await Notify(new ProviderEvent {
+                ProviderType = ProviderType.UserState,
+                DataType = ProviderEventType.BanchoPacket,
+                Data = new BanchoPacket(StatusUpdate.FromUserData(newData, Completeness.Self))
+            });
         }
 
         public Task<UserData> GetUserAsync(uint userId) =>

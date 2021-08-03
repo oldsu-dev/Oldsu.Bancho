@@ -1,11 +1,11 @@
 using System;
 using Oldsu.Types;
 
-namespace Oldsu.Bancho
+namespace Oldsu.Bancho.User
 {
     public class UserData : ICloneable
     {
-        public User UserInfo { get; set; }
+        public UserInfo UserInfo { get; set; }
         public Presence Presence { get; set; }
         public Activity Activity { get; set; }
         public StatsWithRank? Stats { get; set; }

@@ -1,11 +1,14 @@
 ﻿using System.Threading.Tasks;
+using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class LobbyJoin : ISharedPacketIn
     {
-        public async Task Handle(OnlineUser self) =>
-            await self.ServerMediator.Lobby.WriteAsync(lobby => lobby.AddPlayer(self));
+        public async Task Handle(UserContext userContext, Connection _) {
+            
+        }
         
     }
 }

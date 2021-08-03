@@ -1,17 +1,18 @@
 using System.Threading.Tasks;
+using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class MatchCreate : ISharedPacketIn
     {
-
         public MatchSettings MatchSettings { get; set; }
         
-        public async Task Handle(OnlineUser self)
+        public async Task Handle(UserContext userContext, Connection _)
         {
-            if (self.MatchMediator != null)
+            /*if (self.MatchMediator != null)
                 return;
             
             var match = new Match(MatchSettings);
@@ -37,7 +38,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     await self.Connection.SendPacketAsync(
                         new BanchoPacket(new MatchJoinFail()));
                 }
-            });
+            });*/
         }
     }
 }

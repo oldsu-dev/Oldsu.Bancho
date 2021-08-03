@@ -3,7 +3,7 @@ using Oldsu.Bancho.Multiplayer;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class MatchJoinSuccess : ISharedPacketOut, Into<IB904PacketOut>
+    /*public struct MatchJoinSuccess : ISharedPacketOut, Into<IB904PacketOut>
     {
         public Match Match { get; set; }
         
@@ -14,5 +14,5 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                 Match = Match.ToB904Match()
             };
         }
-    }
+    }*/
 }

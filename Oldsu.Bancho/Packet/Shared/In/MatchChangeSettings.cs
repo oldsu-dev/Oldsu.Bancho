@@ -1,6 +1,8 @@
 using System.Threading.Tasks;
+using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Multiplayer.Enums;
+using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -8,9 +10,9 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public MatchSettings MatchSettings { get; set; }
         
-        public async Task Handle(OnlineUser self)
+        public async Task Handle(UserContext userContext, Connection _)
         {
-            if (self.MatchMediator is {} matchMediator)
+            /*if (self.MatchMediator is {} matchMediator)
             {
                 await matchMediator.CurrentMatch.WriteAsync(match =>
                 {
@@ -19,7 +21,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
                     match.ChangeSettings(MatchSettings);
                 });
-            }
+            }*/
         }
     }
 }

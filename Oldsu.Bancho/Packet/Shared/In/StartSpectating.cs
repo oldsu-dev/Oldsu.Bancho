@@ -1,5 +1,7 @@
 ﻿using System.Threading.Tasks;
+using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -7,23 +9,13 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public int UserID { get; set; }
         
-        public async Task Handle(OnlineUser self)
+        public async Task Handle(UserContext userContext, Connection _)
         {
-            OnlineUser host = null;
-            
-            if (!await self.ServerMediator.Users.ReadAsync(
-                users => users.TryGetValue((uint) UserID, out host)))
-            {
-                return;
-            }
-            
-            if (await self.StartSpectatingAsync(host!))
-            {
-                await host!.Connection.SendPacketAsync(new BanchoPacket(new HostSpectatorJoined()
-                {
-                    UserID = (int)self.UserInfo.UserID
-                }));
-            }
+            await userContext.StreamingProvider.NotifySpectatorJoined(
+                (uint)UserID, (uint)userContext.UserID);
+
+            await userContext.SubscriptionManager.SubscribeToSpectatorObservable(
+                await userContext.StreamingProvider.GetSpectatorObserver((uint)UserID));
         }
     }
 }

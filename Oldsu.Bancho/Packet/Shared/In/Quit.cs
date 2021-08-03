@@ -1,16 +1,17 @@
 ﻿using System.Threading.Tasks;
+using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class Quit : ISharedPacketIn
     {
-        public async Task Handle(OnlineUser self)
+        public Task Handle(UserContext context, Connection connection)
         {
-            await self.ServerMediator.Users.ReadAsync(users =>
-                users.BroadcastPacket(new BanchoPacket(
-                    new UserQuit {UserID = (int) self.UserInfo.UserID})
-                ));
+            connection.Disconnect();
+            
+            return Task.CompletedTask;
         }
     }
 }

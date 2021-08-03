@@ -8,7 +8,7 @@ using Oldsu.Utils.Threading;
 
 namespace Oldsu.Bancho.Multiplayer
 {
-    public class Lobby
+    /*public class Lobby
     {
         public const int MatchesAvailable = 256;
         
@@ -48,5 +48,5 @@ namespace Oldsu.Bancho.Multiplayer
             foreach (var client in _clientsInLobby.Values)
                 client.Connection.SendPacket(packet);
         }
-    }
+    }*/
 }

@@ -1,11 +1,12 @@
 ﻿using Oldsu.Bancho.Packet.Shared.In;
+using Oldsu.Bancho.User;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
     public struct SetPresence : ISharedPacketOut, Into<IB394APacketOut>, Into<IB904PacketOut>
     {
-        public User User { get; init; }
+        public UserInfo User { get; init; }
         public Presence Presence { get; init; }
         public StatsWithRank? Stats { get; init; }
         public Activity Activity { get; init; }

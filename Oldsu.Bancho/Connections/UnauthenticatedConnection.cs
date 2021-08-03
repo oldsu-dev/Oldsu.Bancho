@@ -38,9 +38,9 @@ namespace Oldsu.Bancho.Connections
             }
         }
 
-        public AuthenticatedConnection Upgrade(Version version, UserContext userContext)
+        public AuthenticatedConnection Upgrade(Version version)
         {
-            var authenticatedConnection = new AuthenticatedConnection(Guid, RawConnection, userContext);
+            var authenticatedConnection = new AuthenticatedConnection(Guid, RawConnection);
 
             authenticatedConnection.Version = version;
             Dispose();

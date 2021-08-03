@@ -1,19 +1,16 @@
 ﻿using System.Threading.Tasks;
+using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class StopSpectating : ISharedPacketIn
     {
-        public async Task Handle(OnlineUser self)
+        public async Task Handle(UserContext userContext, Connection _)
         {
-            var targetUser = await self.StopSpectatingAsync();
-
-            if (targetUser != null)
-            {
-                await self.Connection.SendPacketAsync(
-                    new BanchoPacket(new HostSpectatorLeft {UserID = (int)targetUser.UserInfo.UserID}));
-            }
+            await userContext.StreamingProvider.NotifySpectatorLeft(userContext.UserID);
+            await userContext.SubscriptionManager.UnsubscribeFromSpectatorObservable();
         }
     }
 }

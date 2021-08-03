@@ -33,12 +33,6 @@ namespace Oldsu.Bancho.Multiplayer
     
     public class Match
     {
-        public struct Mediator
-        {
-            public AsyncRwLockWrapper<Match> CurrentMatch { get; init;  }
-            public int CurrentSlot { get; init; }
-        }
-        
         public const int MaxMatchSize = 8;
         
         public byte MatchID { get; set; }
@@ -51,7 +45,7 @@ namespace Oldsu.Bancho.Multiplayer
         public MatchSettings Settings { get; private set; }
         public MatchSlot[] MatchSlots { get; }
 
-        public bool IsEmpty => MatchSlots.All(slot => slot.User == null);
+        public bool IsEmpty => MatchSlots.All(slot => slot.UserID == -1);
         
         public Packet.Objects.B904.Match ToB904Match() =>
             new()
@@ -68,7 +62,7 @@ namespace Oldsu.Bancho.Multiplayer
                 ScoringType = Settings.ScoringType,
                 SlotStatus = MatchSlots.Select(slot => slot.SlotStatus).ToArray(),
                 SlotTeams = MatchSlots.Select(slot => slot.SlotTeam).ToArray(),
-                SlotIDs = MatchSlots.Select(slot => (int?) slot.User?.UserInfo.UserID ?? -1).ToArray(),
+                SlotIDs = MatchSlots.Select(slot => slot.UserID).ToArray(),
                 TeamType = Settings.TeamType,
                 HostID = HostID,
                 MatchID = MatchID
@@ -87,18 +81,14 @@ namespace Oldsu.Bancho.Multiplayer
             UpdateSupportedVersions();
         }
         
-        public Server.DataProvider ServerDataProvider { get; }
-        
-        public Match(Server.DataProvider serverDataProvider, MatchSettings settings)
+        public Match(MatchSettings settings)
         {
             ChangeSettings(settings);
 
-            ServerDataProvider = serverDataProvider;
-            
             MatchSlots = new MatchSlot[MaxMatchSize];
 
             Array.Fill(MatchSlots, 
-                new MatchSlot { User = null, SlotStatus = SlotStatus.Open, SlotTeam = SlotTeams.Neutral});
+                new MatchSlot { SlotStatus = SlotStatus.Open, SlotTeam = SlotTeams.Neutral});
         }
         
         /// <summary>
@@ -107,7 +97,7 @@ namespace Oldsu.Bancho.Multiplayer
         /// <param name="client"></param>
         /// <param name="password"></param>
         /// <returns>Slot ID</returns>
-        public int? TryJoin(OnlineUser client, string? password)
+        /*public int? TryJoin(OnlineUser client, string? password)
         {
             if (password != Settings.GamePassword)
                 return null;
@@ -207,6 +197,6 @@ namespace Oldsu.Bancho.Multiplayer
 
             HostID = (int)MatchSlots[newSlot].User!.UserInfo.UserID;
             return true;
-        }
+        }*/
     }
 }

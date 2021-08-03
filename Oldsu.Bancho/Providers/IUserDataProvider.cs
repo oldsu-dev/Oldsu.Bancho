@@ -3,13 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 using Oldsu.Enums;
 using Oldsu.Types;
 using Oldsu.Utils;
 
 namespace Oldsu.Bancho.Providers
 {
-    public interface IUserDataProvider : IAsyncObservable<BanchoPacket>
+    public interface IUserStateProvider : IAsyncObservable<ProviderEvent>
     {
         Task RegisterUserAsync(uint userId, UserData data);
         Task UnregisterUserAsync(uint userId);

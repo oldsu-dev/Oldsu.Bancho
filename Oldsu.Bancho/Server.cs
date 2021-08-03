@@ -17,6 +17,7 @@ using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Bancho.Providers;
+using Oldsu.Bancho.User;
 using Oldsu.Enums;
 using Oldsu.Types;
 using Oldsu.Utils;
@@ -60,15 +61,17 @@ namespace Oldsu.Bancho
         ///     Initializes the websocket class
         /// </summary>
         /// <param name="address">Address to bind server to. Example: ws://127.0.0.1:3000</param>
-        public Server(string address, IUserDataProvider userDataProvider)
+        public Server(string address, IUserStateProvider userDataProvider, IStreamingProvider streamingProvider)
         {
             _server = new WebSocketServer(address);
             _connections = new AsyncRwLockWrapper<Dictionary<Guid, Connection>>();
 
-            _userDataProvider = userDataProvider;
+            _userStateProvider = userDataProvider;
+            _streamingProvider = streamingProvider;
         }
 
-        private IUserDataProvider _userDataProvider;
+        private IUserStateProvider _userStateProvider;
+        private IStreamingProvider _streamingProvider;
 
         private static Version GetProtocol(string clientBuild) => clientBuild switch
         {
@@ -106,7 +109,7 @@ namespace Oldsu.Bancho
             return (geoLoc!.Lat, geoLoc!.Lon);
         }
         
-        private async Task<(LoginResult, User?, Version)> Authenticate(string authString)
+        private async Task<(LoginResult, UserInfo?, Version)> Authenticate(string authString)
         {
             var authFields = authString.Split().Select(s => s.Trim()).ToArray();
             
@@ -125,18 +128,17 @@ namespace Oldsu.Bancho
             var user = await db.AuthenticateAsync(loginUsername, loginPassword);
 
             if (user == null)
-            {
                 return (LoginResult.AuthenticationFailed, null, version);
-            }
+            
 
             if (user.Banned)
                 return (LoginResult.Banned, null, version);
 
             // user is found, user is not banned, client is not too old. Everything is fine.
-                return (LoginResult.AuthenticationSuccessful, user, version);
+            return (LoginResult.AuthenticationSuccessful, user, version);
         }
 
-        private async Task<Presence> GetPresenceAsync(User user, string ip)
+        private async Task<Presence> GetPresenceAsync(UserInfo user, string ip)
         {
             var (locationX, locationY) = await GetGeolocationAsync(ip);
 
@@ -157,9 +159,6 @@ namespace Oldsu.Bancho
             Debug.WriteLine($"{conn.ConnectionInfo.Host} disconnected. (${conn.GetType()}).");
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
 
-            if (conn is AuthenticatedConnection authenticatedConnection)
-                await _userDataProvider.UnregisterUserAsync(authenticatedConnection.ConnectedUserContext.UserID);
-            
             conn.Dispose();
         }
 
@@ -192,30 +191,44 @@ namespace Oldsu.Bancho
                 connection.ConnectionInfo.Headers.TryGetValue("X-Forwaded-For", out var ip) ?
                     ip : connection.ConnectionInfo.ClientIpAddress);
 
-            using var connections = await _connections.AcquireWriteLockGuard();
+            var subscriptionManager = new UserSubscriptionManager();
+            await subscriptionManager.SubscribeToUserStateProvider(_userStateProvider);
+            
+            var userContext = new UserContext(
+                userInfo.UserID, userInfo.Username, 
+                subscriptionManager, _userStateProvider, _streamingProvider);
+            
+            var upgradedConnection = connection.Upgrade(version);
 
+            upgradedConnection.PacketReceived += (conn, packet) =>
+                packet.Handle(userContext, (AuthenticatedConnection) conn!);
+
+            async void OnSubscriptionManagerOnPacketInbound(object? _, BanchoPacket packet) =>
+                await upgradedConnection.SendPacketAsync(packet);
+
+            subscriptionManager.PacketInbound += OnSubscriptionManagerOnPacketInbound; 
+            
+            upgradedConnection.Disconnected += (_, _) => userContext.DisposeAsync();
+            
             await using (Database database = new Database())
-            {
-                await _userDataProvider.RegisterUserAsync(userInfo!.UserID,
-                    new UserData
+                await _userStateProvider.RegisterUserAsync(userInfo!.UserID,
+                    new UserData()
                     {
                         Activity = new Activity {Action = Action.Idle},
                         Presence = presence,
                         Stats = await database.GetStatsWithRankAsync(userInfo.UserID, 0),
                         UserInfo = userInfo!
                     });
-            }
-
-            var upgradedConnection = connection.Upgrade(version, 
-                new UserContext(userInfo.UserID, userInfo.Username, _userDataProvider));
             
+            using var connections = await _connections.AcquireWriteLockGuard();
+
             // Update connection object
             (~connections)[upgradedConnection.Guid] = upgradedConnection;
             upgradedConnection.Disconnected += HandleDisconnection;
             
             upgradedConnection.SendHandshake(
                 new CommonHandshake(
-                    await _userDataProvider.GetAllUsersAsync(),
+                    await _userStateProvider.GetAllUsersAsync(),
                     userInfo.UserID,
                     presence.Privilege));
         }

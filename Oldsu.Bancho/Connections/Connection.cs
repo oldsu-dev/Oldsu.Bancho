@@ -30,6 +30,7 @@ namespace Oldsu.Bancho.Connections
             Guid = guid;
             RawConnection.OnClose += HandleDisconnection;
 
+            _sendPacketSemaphore = new SemaphoreSlim(1, 1);
             ResetPing(pingInterval);
 
             _sendingCompletionSource = new TaskCompletionSource();
@@ -37,8 +38,8 @@ namespace Oldsu.Bancho.Connections
 
         protected void ResetPing(int nextPeriod) =>
             _pingTimeoutWindow = DateTime.Now + new TimeSpan(0,0,0,0, nextPeriod);
-        
-        private readonly SemaphoreSlim _sendPacketSemaphore = new(1, 1);
+
+        private readonly SemaphoreSlim _sendPacketSemaphore;
         
         public void SendPacket(BanchoPacket packet) => Task.Run(() => SendPacketAsync(packet));
 

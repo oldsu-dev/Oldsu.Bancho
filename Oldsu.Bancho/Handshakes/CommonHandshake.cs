@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 using Oldsu.Enums;
 
 namespace Oldsu.Bancho.Handshakes
@@ -16,6 +17,7 @@ namespace Oldsu.Bancho.Handshakes
         {
             _privileges = privileges;
             _users = users;
+            _userId = userId;
         }
         
         public void Execute(AuthenticatedConnection connection)

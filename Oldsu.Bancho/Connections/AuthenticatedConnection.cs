@@ -9,23 +9,17 @@ using Oldsu.Utils;
 
 namespace Oldsu.Bancho.Connections
 {
-    public class AuthenticatedConnection : Connection, IAsyncObserver<BanchoPacket>
+    public class AuthenticatedConnection : Connection
     {
         public const int PingMaxInterval = 35_000;
 
-        private readonly IDisposable _banchoPacketObserverUnsubscriber;
+        public event EventHandler<ISharedPacketIn>? PacketReceived;
         
-        public ConnectedUserContext ConnectedUserContext { get; }
-
-        public AuthenticatedConnection(Guid guid, IWebSocketConnection webSocketConnection, UserContext userContext) 
+        public AuthenticatedConnection(Guid guid, IWebSocketConnection webSocketConnection) 
             : base(guid, webSocketConnection, PingMaxInterval)
         {
             RawConnection.OnBinary += HandleBinary;
             RawConnection.OnMessage += HandleMessage;
-
-            ConnectedUserContext = userContext.Connect(this);
-
-            _banchoPacketObserverUnsubscriber = ConnectedUserContext.UserDataProvider.SubscribeAsync(this);
         }
 
         public void SendHandshake(IHandshake handshake) => handshake.Execute(this);
@@ -41,7 +35,7 @@ namespace Oldsu.Bancho.Connections
             }
             
             ISharedPacketIn packet = ((Into<ISharedPacketIn>)obj).Into();
-            packet.Handle(ConnectedUserContext);
+            PacketReceived?.Invoke(this, packet);
         }
 
         private void HandleMessage(string message)
@@ -56,16 +50,11 @@ namespace Oldsu.Bancho.Connections
             
             if (disposing)
             {
-                _banchoPacketObserverUnsubscriber.Dispose();
-                
                 RawConnection.OnBinary -= HandleBinary;
                 RawConnection.OnMessage -= HandleMessage;
             }
         }
-
-        Task IAsyncObserver<BanchoPacket>.OnNextAsync(BanchoPacket statusUpdate) =>
-            this.SendPacketAsync(statusUpdate);
-
+        
         public Task OnErrorAsync(Exception exception)
         {
             throw new NotImplementedException();
