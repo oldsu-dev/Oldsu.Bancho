@@ -4,7 +4,7 @@ using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct StatusUpdate : ISharedPacketOut, Into<IB904PacketOut>
+    public struct StatusUpdate : ISharedPacketOut, IntoPacket<IB904PacketOut>
     {
         public static StatusUpdate FromUserData(UserData userData, Completeness completeness) =>
             new StatusUpdate
@@ -136,7 +136,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
         #endregion
         
         #region b904
-        IB904PacketOut Into<IB904PacketOut>.Into()
+        IB904PacketOut IntoPacket<IB904PacketOut>.IntoPacket()
         {
             dynamic packet;
             if (Completeness == Completeness.Self)

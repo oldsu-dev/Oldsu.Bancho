@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Providers;
+using Oldsu.Types;
 using Oldsu.Utils;
+using Action = Oldsu.Enums.Action;
 
 namespace Oldsu.Bancho.User
 {
@@ -15,14 +17,33 @@ namespace Oldsu.Bancho.User
         private IAsyncDisposable? _userStateUnsubscriber;
         private IAsyncDisposable? _userStreamerUnsubscriber;
         private IAsyncDisposable? _userSpectatorUnsubscriber;
+        private IAsyncDisposable? _matchUpdateUnsubscriber;
 
+        public async Task SubscribeToMatchUpdates(ILobbyProvider provider)
+        {
+            await UnsubscribeFromMatchUpdates();
+            _matchUpdateUnsubscriber = await provider.Subscribe(this);
+        }
+        
+        public async Task SubscribeToMatchUpdates(IMatchObservable provider)
+        {
+            await UnsubscribeFromMatchUpdates();
+            _matchUpdateUnsubscriber = await provider.Subscribe(this);
+        }
+
+        // You don't want to anyway
+        public async Task UnsubscribeFromMatchUpdates()
+        {
+            await (_matchUpdateUnsubscriber?.DisposeAsync() ?? ValueTask.CompletedTask);
+            _matchUpdateUnsubscriber = null;
+        }
+        
         public async Task SubscribeToUserStateProvider(IUserStateProvider provider)
         {
             await UnsubscribeFromUserStateProvider();
             _userStateUnsubscriber = await provider.Subscribe(this);
         }
 
-        // You don't want to anyway
         public async Task UnsubscribeFromUserStateProvider()
         {
             await (_userStateUnsubscriber?.DisposeAsync() ?? ValueTask.CompletedTask);
@@ -63,7 +84,7 @@ namespace Oldsu.Bancho.User
 
         public Task OnError(object? sender, Exception? exception)
         {
-            throw new NotImplementedException();
+            return Task.CompletedTask; 
         }
 
         public Task OnCompleted(object? sender)
@@ -81,24 +102,50 @@ namespace Oldsu.Bancho.User
             await UnsubscribeFromSpectatorObservable();
             await UnsubscribeFromStreamerObservable();
             await UnsubscribeFromUserStateProvider();
+            await UnsubscribeFromMatchUpdates();
         }
     }
     
     public class UserContext : IAsyncDisposable
     {
-        public UserContext(uint userId, string username, UserSubscriptionManager subscriptionManager,
-            IUserStateProvider userStateProvider, IStreamingProvider streamingProvider)
+        public UserContext(
+            uint userId, string username, 
+            IUserStateProvider userStateProvider, 
+            IStreamingProvider streamingProvider,
+            ILobbyProvider lobbyProvider)
         {
             UserID = userId;
             Username = username;
 
+            SubscriptionManager = new UserSubscriptionManager();
             UserStateProvider = userStateProvider;
             StreamingProvider = streamingProvider;
-            SubscriptionManager = subscriptionManager;
+            LobbyProvider = lobbyProvider;
         }
 
+        public async Task InitialRegistration(UserInfo userInfo, Presence presence)
+        {
+            await SubscriptionManager.SubscribeToUserStateProvider(UserStateProvider);
+            await StreamingProvider.RegisterStreamer(UserID);
+
+            await SubscriptionManager.SubscribeToStreamerObservable(
+                await StreamingProvider.GetStreamerObserver(UserID));
+
+            await using Database database = new Database();
+            
+            await UserStateProvider.RegisterUserAsync(userInfo!.UserID,
+                new UserData()
+                {
+                    Activity = new Activity {Action = Action.Idle},
+                    Presence = presence,
+                    Stats = await database.GetStatsWithRankAsync(userInfo.UserID, 0),
+                    UserInfo = userInfo!
+                });
+        }
+        
         public IUserStateProvider UserStateProvider { get; }
         public IStreamingProvider StreamingProvider { get; }
+        public ILobbyProvider LobbyProvider { get; }
         public UserSubscriptionManager SubscriptionManager { get; }
 
         // private readonly AsyncRwLockWrapper<GameSpectator> _gameSpectator;
@@ -109,6 +156,8 @@ namespace Oldsu.Bancho.User
 
         public async ValueTask DisposeAsync()
         {
+            await StreamingProvider.UnregisterStreamer(UserID);
+            await UserStateProvider.UnregisterUserAsync(UserID);
             await SubscriptionManager.DisposeAsync();
         }
     }

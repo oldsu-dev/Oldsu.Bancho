@@ -1,16 +1,67 @@
 using System;
+using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
 using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Handshakes;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 using Oldsu.Utils;
 
 namespace Oldsu.Bancho.Connections
 {
+    public class ConnectionEventHandler
+    {
+        public ConnectionEventHandler(UserContext userContext, Connection connection)
+        {
+            _userContext = userContext;
+            _connection = connection;
+            _eventSemaphore = new SemaphoreSlim(1,1);
+        }
+        
+        private UserContext _userContext;
+        private Connection _connection;
+        private SemaphoreSlim _eventSemaphore;
+        
+        public async void ProcessPacket(ISharedPacketIn packet)
+        {
+            await _eventSemaphore.WaitAsync();
+
+            try
+            {
+                await packet.Handle(_userContext, _connection);
+            }
+            finally
+            {
+                _eventSemaphore.Release();
+            }
+        }
+        
+        public void PacketInbound(BanchoPacket packet)
+        {
+            _connection.SendPacket(packet);
+        }
+        
+        public async void DisposeUserContext()
+        {
+            await _eventSemaphore.WaitAsync();
+
+            try
+            {
+                await _userContext.DisposeAsync();
+            }
+            finally
+            {
+                _eventSemaphore.Release();
+            }
+        }
+    }
+
     public class AuthenticatedConnection : Connection
     {
+        
         public const int PingMaxInterval = 35_000;
 
         public event EventHandler<ISharedPacketIn>? PacketReceived;
@@ -33,8 +84,10 @@ namespace Oldsu.Bancho.Connections
             {
                 return;
             }
+
+            ISharedPacketIn packet = ((IntoPacket<ISharedPacketIn>)obj).IntoPacket();
+            Debug.WriteLine(packet.GetType());
             
-            ISharedPacketIn packet = ((Into<ISharedPacketIn>)obj).Into();
             PacketReceived?.Invoke(this, packet);
         }
 
@@ -53,16 +106,6 @@ namespace Oldsu.Bancho.Connections
                 RawConnection.OnBinary -= HandleBinary;
                 RawConnection.OnMessage -= HandleMessage;
             }
-        }
-        
-        public Task OnErrorAsync(Exception exception)
-        {
-            throw new NotImplementedException();
-        }
-
-        public Task OnCompletedAsync()
-        {
-            throw new NotImplementedException();
         }
     }
 }

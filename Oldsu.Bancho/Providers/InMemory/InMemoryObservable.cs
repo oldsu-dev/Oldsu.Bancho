@@ -12,7 +12,7 @@ namespace Oldsu.Bancho.Providers.InMemory
 
         protected InMemoryObservable()
         {
-            _observers = new AsyncRwLockWrapper<List<IAsyncObserver<T>>>();
+            _observers = new AsyncRwLockWrapper<List<IAsyncObserver<T>>>(new());
         }
 
         public Task<IAsyncDisposable> Subscribe(IAsyncObserver<T> observer) =>

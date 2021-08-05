@@ -4,11 +4,11 @@ using Oldsu.Enums;
 namespace Oldsu.Bancho.Packet.In.B904
 {
     [BanchoPacket(42, Version.B904, BanchoPacketType.In)]
-    public struct MatchChangeSettings : Into<ISharedPacketIn>
+    public struct MatchChangeSettings : IntoPacket<ISharedPacketIn>
     {
         [BanchoSerializable] public Match Match;
         
-        public ISharedPacketIn Into()
+        public ISharedPacketIn IntoPacket()
         {
             return new Shared.In.MatchChangeSettings
             {

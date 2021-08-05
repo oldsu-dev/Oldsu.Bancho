@@ -5,8 +5,9 @@ using Oldsu.Bancho.Providers.InMemory;
 
 var userDataProvider = new InMemoryUserStateProvider();
 var streamingProvider = new InMemoryStreamingProvider();
+var lobbyProvider = new InMemoryLobbyProvider();
 
 // Future usage from cli: oldsu ws://127.0.0.1/ or something like that
-var server = new Server("ws://0.0.0.0:8080/", userDataProvider, streamingProvider);
+var server = new Server("ws://0.0.0.0:8080/", userDataProvider, streamingProvider, lobbyProvider);
 await server.Run();
 

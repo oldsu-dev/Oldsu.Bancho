@@ -3,8 +3,8 @@
 namespace Oldsu.Bancho.Packet.In.B904
 {
     [BanchoPacket(30, Version.B904, BanchoPacketType.In)]
-    public struct LobbyPart : Into<ISharedPacketIn>
+    public struct LobbyPart : IntoPacket<ISharedPacketIn>
     {
-        ISharedPacketIn Into<ISharedPacketIn>.Into() => new Shared.In.LobbyPart();
+        ISharedPacketIn IntoPacket<ISharedPacketIn>.IntoPacket() => new Shared.In.LobbyPart();
     }
 }

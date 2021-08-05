@@ -20,8 +20,8 @@ namespace Oldsu.Bancho.Providers.InMemory
 
         public InMemoryUserStateProvider()
         {
-            _observers = new AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>>();
-            _wrapper = new AsyncRwLockWrapper<Dictionary<uint, UserData>>();
+            _observers = new AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>>(new ());
+            _wrapper = new AsyncRwLockWrapper<Dictionary<uint, UserData>>(new ());
         }
 
         public async Task RegisterUserAsync(uint userId, UserData data)

@@ -8,12 +8,11 @@ namespace Oldsu.Bancho.Providers
     public interface ISpectatorObservable : IAsyncObservable<ProviderEvent> { }
     
     public interface IStreamerObservable : IAsyncObservable<ProviderEvent> { }
-
-
+    
     public interface IStreamingProvider
     {
-        Task<IStreamerObservable> GetStreamerObserver(uint userId);
-        Task<ISpectatorObservable> GetSpectatorObserver(uint userId);
+        Task<IStreamerObservable?> GetStreamerObserver(uint userId);
+        Task<ISpectatorObservable?> GetSpectatorObserver(uint userId);
         Task PushFrames(uint userId, byte[] frameData);
         Task NotifySpectatorJoined(uint userId, uint spectatorUserId);
         Task NotifySpectatorLeft(uint spectatorUserId);

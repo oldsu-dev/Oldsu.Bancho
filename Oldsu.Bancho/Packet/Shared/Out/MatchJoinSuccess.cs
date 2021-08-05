@@ -1,18 +1,14 @@
 using System.Linq;
 using Oldsu.Bancho.Multiplayer;
+using Oldsu.Bancho.Packet.Objects.B904;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    /*public struct MatchJoinSuccess : ISharedPacketOut, Into<IB904PacketOut>
+    public struct MatchJoinSuccess : ISharedPacketOut, IntoPacket<IB904PacketOut>
     {
-        public Match Match { get; set; }
+        public MatchState MatchState { get; set; }
         
-        public IB904PacketOut Into()
-        {
-            return new Packet.Out.B904.MatchJoinSuccess
-            {
-                Match = Match.ToB904Match()
-            };
-        }
-    }*/
+        public IB904PacketOut IntoPacket() =>
+            new Packet.Out.B904.MatchJoinSuccess() {Match = Match.FromMatchState(MatchState)};
+    }
 }

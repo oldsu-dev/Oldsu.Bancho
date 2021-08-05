@@ -3,7 +3,8 @@ namespace Oldsu.Bancho.Providers
     public enum ProviderType
     {
         UserState,
-        Streaming
+        Streaming,
+        Lobby,
     }
     
     public enum ProviderEventType

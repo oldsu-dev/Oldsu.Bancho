@@ -8,7 +8,11 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(UserContext userContext, Connection _)
         {
-            
+            await userContext.SubscriptionManager.UnsubscribeFromMatchUpdates();
+
+            // osu! leaves the lobby when joining a Match
+            if (await userContext.LobbyProvider.MatchGetObservable(userContext.UserID) is { } observable)
+                await userContext.SubscriptionManager.SubscribeToMatchUpdates(observable!);
         }
     }
 }

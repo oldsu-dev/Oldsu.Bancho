@@ -76,11 +76,10 @@ namespace Oldsu.Bancho.Connections
                     return;
 
                 var data = packet.GetDataByVersion(this.Version);
-
-                if (data.Length == 0)
+                if (data == null || data.Length == 0)
                     return;
 
-                await RawConnection!.Send(data);
+                await RawConnection.Send(data);
             }
             catch (ConnectionNotAvailableException exception)
             {

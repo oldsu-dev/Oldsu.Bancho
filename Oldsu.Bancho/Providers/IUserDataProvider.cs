@@ -17,7 +17,5 @@ namespace Oldsu.Bancho.Providers
         Task<IEnumerable<UserData>> GetAllUsersAsync();
         Task SetActivityAsync(uint userId, Activity activity);
         Task SetStatsAsync(uint userId, StatsWithRank? stats);
-        Task<UserData> GetUserAsync(uint userId);
-        Task<Privileges> GetUserPrivilegesAsync(uint userId);
     }
 }

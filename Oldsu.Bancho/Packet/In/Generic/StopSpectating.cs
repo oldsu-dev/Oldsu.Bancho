@@ -3,9 +3,9 @@
 namespace Oldsu.Bancho.Packet.In.Generic
 {
     [BanchoPacket(18, Version.NotApplicable, BanchoPacketType.In)]
-    public struct StopSpectating : Into<Shared.In.StopSpectating>, IGenericPacketIn
+    public struct StopSpectating : IntoPacket<Shared.In.StopSpectating>
     {
-        public Shared.In.StopSpectating Into()
+        public Shared.In.StopSpectating IntoPacket()
         {
             return new Shared.In.StopSpectating { };
         }

@@ -1,10 +1,10 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct JoinChannel : ISharedPacketOut, Into<IGenericPacketOut>
+    public struct JoinChannel : ISharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public string ChannelName { get; init; }
 
-        public IGenericPacketOut Into()
+        public IGenericPacketOut IntoPacket()
         {
             var packet = new Packet.Out.Generic.JoinChannel
             {

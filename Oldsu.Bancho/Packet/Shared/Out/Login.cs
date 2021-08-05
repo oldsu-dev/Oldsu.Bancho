@@ -1,9 +1,9 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct Login : ISharedPacketOut, Into<IGenericPacketOut>
+    public struct Login : ISharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public int LoginStatus { get; init; }
-        public IGenericPacketOut Into()
+        public IGenericPacketOut IntoPacket()
         {
             var packet = new Packet.Out.Generic.Login
             {

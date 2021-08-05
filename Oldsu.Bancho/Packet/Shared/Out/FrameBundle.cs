@@ -1,10 +1,10 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class FrameBundle : ISharedPacketOut, Into<IGenericPacketOut>
+    public class FrameBundle : ISharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public byte[] Frames { get; init; }
 
-        public IGenericPacketOut Into()
+        public IGenericPacketOut IntoPacket()
         {
             var packet = new Packet.Out.Generic.SendFrameBundle
             {

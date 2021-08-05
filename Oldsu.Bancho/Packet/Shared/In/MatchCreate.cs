@@ -9,36 +9,15 @@ namespace Oldsu.Bancho.Packet.Shared.In
     public class MatchCreate : ISharedPacketIn
     {
         public MatchSettings MatchSettings { get; set; }
-        
-        public async Task Handle(UserContext userContext, Connection _)
-        {
-            /*if (self.MatchMediator != null)
-                return;
-            
-            var match = new Match(MatchSettings);
-            var slotId = match.TryJoin(self, MatchSettings.GamePassword)!.Value;
 
-            await self.ServerMediator.Lobby.WriteAsync(async lobby =>
-            {
-                var matchWrapper = lobby.RegisterMatch(match);
-                
-                if (matchWrapper != null)
-                {
-                    self.MatchMediator = new Match.Mediator
-                    {
-                        CurrentMatch = matchWrapper,
-                        CurrentSlot = slotId
-                    };
-                    
-                    await self.Connection.SendPacketAsync(
-                        new BanchoPacket(new MatchJoinSuccess { Match = match }));
-                }
-                else
-                {
-                    await self.Connection.SendPacketAsync(
-                        new BanchoPacket(new MatchJoinFail()));
-                }
-            });*/
+        public async Task Handle(UserContext userContext, Connection connection)
+        {
+            var match = await userContext.LobbyProvider.CreateMatch(userContext.UserID, MatchSettings);
+            
+            if (match is null)
+                await connection.SendPacketAsync(new BanchoPacket(new MatchJoinFail()));
+            else
+                await connection.SendPacketAsync(new BanchoPacket(new MatchJoinSuccess {MatchState = match}));
         }
     }
 }

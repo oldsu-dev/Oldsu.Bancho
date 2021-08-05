@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Bancho.Packet;
@@ -14,7 +15,7 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Multiplayer
 {
-    public class MatchSettings
+    public class MatchSettings : ICloneable
     {
         public string? BeatmapName { get; set; }
         public int BeatmapID { get; set; }
@@ -29,174 +30,187 @@ namespace Oldsu.Bancho.Multiplayer
         
         public MatchType MatchType { get; set; }
         public short ActiveMods { get; set; }
+        public object Clone() => MemberwiseClone();
     }
     
-    public class Match
+    public class MatchState : ICloneable
     {
         public const int MaxMatchSize = 8;
         
-        public byte MatchID { get; set; }
+        public int MatchID { get; set; }
         public int HostID { get; set; }
         
-        public HashSet<Version> AllowedVersions { get; } = new() { Version.B394A, Version.B904 }; // <- WTF
+        public HashSet<Version> AllowedVersions { get; }  // <- WTF
 
-        public bool InProgress { get; private set; }
+        public bool InProgress { get; set; }
 
         public MatchSettings Settings { get; private set; }
         public MatchSlot[] MatchSlots { get; }
 
         public bool IsEmpty => MatchSlots.All(slot => slot.UserID == -1);
         
-        public Packet.Objects.B904.Match ToB904Match() =>
-            new()
-            {
-                ActiveMods = Settings.ActiveMods,
-                BeatmapChecksum = Settings.BeatmapChecksum!,
-                BeatmapID = Settings.BeatmapID,
-                BeatmapName = Settings.BeatmapName!,
-                GameName = Settings.GameName!,
-                GamePassword = Settings.GamePassword!,
-                MatchType = Settings.MatchType,
-                InProgress = InProgress,
-                PlayMode = Settings.PlayMode,
-                ScoringType = Settings.ScoringType,
-                SlotStatus = MatchSlots.Select(slot => slot.SlotStatus).ToArray(),
-                SlotTeams = MatchSlots.Select(slot => slot.SlotTeam).ToArray(),
-                SlotIDs = MatchSlots.Select(slot => slot.UserID).ToArray(),
-                TeamType = Settings.TeamType,
-                HostID = HostID,
-                MatchID = MatchID
-            };
-        
         private void UpdateSupportedVersions()
         {
-            // b394 lacks password field in bMatch, so it wont be in the lobby.
-            if (Settings.GamePassword is not (null or ""))
-                AllowedVersions.Remove(Version.B394A);
+            // Used for compatibility with future versions
         }
         
-        public void ChangeSettings(MatchSettings settings)
+        public bool ChangeSettings(int slotId, MatchSettings settings)
         {
+            if (MatchSlots[slotId].UserID != HostID)
+                return false;
+
+            var password = settings.GamePassword;
+            
             Settings = settings;
             UpdateSupportedVersions();
+
+            settings.GamePassword = password;
+            
+            return true;
         }
         
-        public Match(MatchSettings settings)
+        public MatchState(int matchId, int hostId, MatchSettings settings)
         {
-            ChangeSettings(settings);
+            AllowedVersions = new HashSet<Version> { Version.B904 };
 
+            Settings = settings;
+            UpdateSupportedVersions();
+            
             MatchSlots = new MatchSlot[MaxMatchSize];
 
-            Array.Fill(MatchSlots, 
-                new MatchSlot { SlotStatus = SlotStatus.Open, SlotTeam = SlotTeams.Neutral});
+            MatchID = matchId;
+            HostID = hostId;
+
+            Array.Fill(MatchSlots, new MatchSlot
+            {
+                UserID = -1, 
+                SlotStatus = SlotStatus.Open, 
+                SlotTeam = SlotTeams.Neutral
+            });
         }
-        
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="client"></param>
-        /// <param name="password"></param>
-        /// <returns>Slot ID</returns>
-        /*public int? TryJoin(OnlineUser client, string? password)
+
+        public uint? Join(int userId, string password)
         {
             if (password != Settings.GamePassword)
                 return null;
             
-            for (int i = 0; i < MaxMatchSize; i++)
-            {
-                if (MatchSlots[i].User != null) 
-                    continue;
-                
-                MatchSlots[i].SlotStatus = SlotStatus.NotReady;
-                MatchSlots[i].SlotTeam = Settings.TeamType is MatchTeamTypes.TeamVs or MatchTeamTypes.TagTeamVs ? 
-                    SlotTeams.Blue : SlotTeams.Red;
-                
-                MatchSlots[i].User = client;
+            var newSlotIndex = Array.FindIndex(MatchSlots, slot => slot.UserID == -1 
+                                                                   && slot.SlotStatus != SlotStatus.Locked);
 
-                return i;
-            }
-            
-            return null;
+            if (newSlotIndex == -1)
+                return null;
+
+            MatchSlots[newSlotIndex].SetUser(userId);
+  
+            return (uint)newSlotIndex;
         }
 
-        public bool Leave(int slotId)
+        public bool Start(int slotId)
         {
-            if (MatchSlots[slotId].User == null)
+            if (MatchSlots[slotId].UserID != HostID)
                 return false;
-
-            if (MatchSlots[slotId].User!.UserInfo.UserID == HostID)
-            {
-                var newHostIndex = Array.FindIndex(MatchSlots, (slot) => slot.User != null);
-                HostID = (int)MatchSlots[newHostIndex].User!.UserInfo.UserID;
-            }
             
-            MatchSlots[slotId].Reset();
-            return true;
-        }
-
-        public void Start()
-        {
             Array.ForEach(MatchSlots, slot =>
             {
-                slot.SlotStatus = SlotStatus.Playing;
-                slot.Completed = false;
-                slot.Loaded = false;
-                slot.Skipped = false;
+                if (slot.SlotStatus == SlotStatus.Ready)
+                    slot.SlotStatus = SlotStatus.Playing;
             });
-        }
 
-        public void ForceStop()
-        {            
-            for (int i = 0; i < MaxMatchSize; i++)
-                Complete(i);
-        }
-
-        public void UnreadyAll()
-        {
-            Array.ForEach(MatchSlots, slot => slot.SlotStatus = SlotStatus.NotReady);
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns>Whether is skipped by all the users or not.</returns>
-        public bool Skip(int slotId)
-        {
-            MatchSlots[slotId].Skipped = true;
-            return MatchSlots.All(slot => slot.Skipped);
-        }
-
-        public bool CompleteLoad(int slotId)
-        {
-            MatchSlots[slotId].Loaded = true;
-            return MatchSlots.All(slot => slot.Loaded);
+            return true;
         }
         
-        public bool Complete(int slotId)
+        public bool SetSlotStatus(int slotId, SlotStatus status)
         {
-            MatchSlots[slotId].Completed = true;
-            return MatchSlots.All(slot => slot.Completed);
-        }
-
-        public bool MoveSlot(int currentSlot, int newSlot)
-        {
-            if (MatchSlots[newSlot].User != null)
+            var slot = MatchSlots[slotId];
+            
+            if (slot.UserID == -1)
                 return false;
+            
+            MatchSlots[slotId].SlotStatus = status;
 
-            MatchSlots[currentSlot].Move(ref MatchSlots[newSlot]);
             return true;
         }
 
-        public bool TransferHost(int currentSlot, int newSlot)
+        public bool MoveSlot(int slotId, int newSlotId)
         {
-            if (MatchSlots[newSlot].User == null || MatchSlots[currentSlot].User == null ||
-                MatchSlots[newSlot].User!.UserInfo.UserID == MatchSlots[currentSlot].User!.UserInfo.UserID)
-            {
+            if (slotId == newSlotId)
                 return false;
-            }
+            
+            MatchSlots[slotId].Move(ref MatchSlots[newSlotId]);
 
-            HostID = (int)MatchSlots[newSlot].User!.UserInfo.UserID;
             return true;
-        }*/
+        }
+
+        public (bool, bool) Leave(int slotId)
+        {
+            var slot = MatchSlots[slotId];
+            if (slot.UserID == -1)
+                return (false, false);
+
+            MatchSlots[slotId].Reset();
+
+            var newHost = Array.FindIndex(MatchSlots, s => s.UserID != -1);
+            if (newHost == -1)
+                return (true, true);
+            
+            HostID = MatchSlots[newHost].UserID;
+            
+            return (true, false);
+        }
+
+        public bool NoBeatmap(int slotId)
+        {
+            var slot = MatchSlots[slotId];
+            
+            if (slot.UserID == -1)
+                return false;
+
+            MatchSlots[slotId].SlotStatus |= SlotStatus.NoMap;
+
+            return true;
+        }
+        
+        public bool GotBeatmap(int slotId)
+        {
+            var slot = MatchSlots[slotId];
+            
+            if (slot.UserID == -1)
+                return false;
+
+            MatchSlots[slotId].SlotStatus &= ~SlotStatus.NoMap;
+
+            return true;
+        }
+        
+        public bool ChangeMods(int slotId, short mods)
+        {
+            if (MatchSlots[slotId].UserID != HostID)
+                return false;
+
+            Settings.ActiveMods = mods;
+
+            return true;
+        }
+
+        public bool LockSlot(int slotId, int lockedSlot)
+        {
+            if (MatchSlots[slotId].UserID != HostID)
+                return false;
+
+            if (slotId == lockedSlot)
+                return false;
+
+            MatchSlots[lockedSlot].ToggleLock();
+
+            return true;
+        }
+
+        public object Clone()
+        {
+            var match = (MemberwiseClone() as MatchState)!;
+            match.Settings = (match.Settings.Clone() as MatchSettings)!;
+            
+            return match;
+        }
     }
 }

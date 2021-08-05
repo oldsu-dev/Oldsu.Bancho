@@ -9,9 +9,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public byte[] Frames { get; init; }
 
-        public async Task Handle(UserContext userContext, Connection _)
-        {
-            
-        }
+        public Task Handle(UserContext userContext, Connection _) =>
+            userContext.StreamingProvider.PushFrames(userContext.UserID, Frames);
     }
 }

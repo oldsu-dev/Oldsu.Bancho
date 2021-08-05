@@ -16,24 +16,36 @@ namespace Oldsu.Bancho.Providers.InMemory
 
         public InMemoryStreamingProvider()
         {
-            _streamerObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemoryStreamerObservable>>();
-            _spectatorObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemorySpectatorObservable>>();
+            _streamerObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemoryStreamerObservable>>(new());
+            _spectatorObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemorySpectatorObservable>>(new ());
             _streamingPairs = new AsyncMutexWrapper<Dictionary<uint, uint>>();
         }
 
-        public Task<IStreamerObservable> GetStreamerObserver(uint userId) => 
+        public Task<IStreamerObservable?> GetStreamerObserver(uint userId) => 
             _streamerObservables.ReadAsync(
-                observables => (IStreamerObservable)observables[userId]);
+                observables =>
+                {
+                    if (!observables.TryGetValue(userId, out var observable))
+                        return null;
+                        
+                    return (IStreamerObservable)observable;
+                });
 
-        public Task<ISpectatorObservable> GetSpectatorObserver(uint userId) =>
+        public Task<ISpectatorObservable?> GetSpectatorObserver(uint userId) =>
             _spectatorObservables.ReadAsync(
-                observables => (ISpectatorObservable)observables[userId]);
+                observables =>
+                {
+                    if (!observables.TryGetValue(userId, out var observable))
+                        return null;
+                    
+                    return (ISpectatorObservable)observable;
+                });
 
         public Task PushFrames(uint userId, byte[] frameData) =>
             _spectatorObservables.ReadAsync(observables => 
                 observables[userId].Notify(new ProviderEvent
                 {
-                    ProviderType = ProviderType.UserState,
+                    ProviderType = ProviderType.Streaming,
                     DataType = ProviderEventType.BanchoPacket,
                     Data = new BanchoPacket(new FrameBundle {Frames = frameData})
                 }));
@@ -44,19 +56,19 @@ namespace Oldsu.Bancho.Providers.InMemory
             using var spectatorObservablesLock = await _spectatorObservables.AcquireReadLockGuard();
             using var spectatorCouplesLock = await _streamingPairs.AcquireLockGuard();
    
-            (~spectatorCouplesLock).Add(spectatorUserId, userId);
+            (-spectatorCouplesLock).Add(spectatorUserId, userId);
             
-            await (~streamerObservablesLock)[userId].Notify(new ProviderEvent
+            await (-streamerObservablesLock)[userId].Notify(new ProviderEvent
             {
                 Data = new BanchoPacket(new HostSpectatorJoined {UserID = (int)spectatorUserId}),
-                ProviderType = ProviderType.UserState,
+                ProviderType = ProviderType.Streaming,
                 DataType = ProviderEventType.BanchoPacket,
             });
             
-            await (~spectatorObservablesLock)[userId].Notify(new ProviderEvent
+            await (-spectatorObservablesLock)[userId].Notify(new ProviderEvent
             {
                 Data = new BanchoPacket(new FellowSpectatorJoined {UserID = (int)spectatorUserId}),
-                ProviderType = ProviderType.UserState,
+                ProviderType = ProviderType.Streaming,
                 DataType = ProviderEventType.BanchoPacket,
             });
             
@@ -68,19 +80,19 @@ namespace Oldsu.Bancho.Providers.InMemory
             using var spectatorObservablesLock = await _spectatorObservables.AcquireReadLockGuard();
             using var spectatorCouplesLock = await _streamingPairs.AcquireLockGuard();
    
-            (~spectatorCouplesLock).Remove(spectatorUserId, out var userId);
+            (-spectatorCouplesLock).Remove(spectatorUserId, out var userId);
    
-            await (~streamerObservablesLock)[userId].Notify(new ProviderEvent
+            await (-streamerObservablesLock)[userId].Notify(new ProviderEvent
             {
                 Data = new BanchoPacket(new HostSpectatorLeft {UserID = (int)spectatorUserId}),
-                ProviderType = ProviderType.UserState,
+                ProviderType = ProviderType.Streaming,
                 DataType = ProviderEventType.BanchoPacket,
             });
             
-            await (~spectatorObservablesLock)[userId].Notify(new ProviderEvent
+            await (-spectatorObservablesLock)[userId].Notify(new ProviderEvent
             {
                 Data = new BanchoPacket(new FellowSpectatorLeft {UserID = (int)spectatorUserId}),
-                ProviderType = ProviderType.UserState,
+                ProviderType = ProviderType.Streaming,
                 DataType = ProviderEventType.BanchoPacket,
             });
         }
@@ -89,9 +101,12 @@ namespace Oldsu.Bancho.Providers.InMemory
         {
             using var streamerObservablesLock = await _streamerObservables.AcquireWriteLockGuard();
             using var spectatorObservablesLock = await _spectatorObservables.AcquireWriteLockGuard();
-            
-            (~streamerObservablesLock).Add(userId, new InMemoryStreamerObservable());
-            (~spectatorObservablesLock).Add(userId, new InMemorySpectatorObservable());
+
+            if ((-streamerObservablesLock).ContainsKey(userId))
+                return;
+
+            (-streamerObservablesLock).Add(userId, new InMemoryStreamerObservable());
+            (-spectatorObservablesLock).Add(userId, new InMemorySpectatorObservable());
         }
 
         public async Task UnregisterStreamer(uint userId)
@@ -99,9 +114,12 @@ namespace Oldsu.Bancho.Providers.InMemory
             using var streamerObservablesLock = await _streamerObservables.AcquireWriteLockGuard();
             using var spectatorObservablesLock = await _spectatorObservables.AcquireWriteLockGuard();
             
-            (~streamerObservablesLock).Remove(userId);
-            (~spectatorObservablesLock)[userId].Complete();
-            (~spectatorObservablesLock).Remove(userId);
+            if (!(-streamerObservablesLock).ContainsKey(userId))
+                return;
+            
+            (-streamerObservablesLock).Remove(userId);
+            await (-spectatorObservablesLock)[userId].Complete();
+            (-spectatorObservablesLock).Remove(userId);
         }
     }
 }

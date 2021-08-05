@@ -22,12 +22,28 @@ namespace Oldsu.Bancho.Multiplayer
         {
             SlotStatus = SlotStatus.Open;
             SlotTeam = SlotTeams.Neutral;
+            UserID = -1;
         }
         
+        public void ToggleLock()
+        {
+            SlotTeam = SlotTeams.Neutral;
+            UserID = -1;
+            SlotStatus = SlotStatus == SlotStatus.Locked ? SlotStatus.Open : SlotStatus.Locked;
+        }
+        
+        public void SetUser(int userId)
+        {
+            SlotStatus = SlotStatus.NotReady;
+            SlotTeam = SlotTeams.Neutral;
+            UserID = userId;
+        }
+
         public void Move(ref MatchSlot newSlot)
         {
             newSlot.SlotStatus = SlotStatus;
             newSlot.SlotTeam = SlotTeam;
+            newSlot.UserID = UserID;
             
             Reset();
         }

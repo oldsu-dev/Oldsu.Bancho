@@ -9,26 +9,28 @@ namespace Oldsu.Bancho
 {
     public class BanchoPacket
     {
-        private readonly ConcurrentDictionary<Version, byte[]> _cachedData = new();
-        private readonly ISharedPacketOut _payload;
+        private readonly ConcurrentDictionary<Version, byte[]?> _cachedData = new();
+        private readonly ISharedPacketOut? _payload;
 
         public BanchoPacket(ISharedPacketOut payload)
         {
             _payload = payload;
         }
 
-        private byte[] SerializeDataByVersion(Version version)
+        private byte[]? SerializeDataByVersion(Version version)
         {
+            if (_payload == null)
+                return null;
+            
             object? packet;
 
-            if (_payload is Into<IGenericPacketOut> generic)
-                packet = generic.Into();
+            if (_payload is IntoPacket<IGenericPacketOut> generic)
+                packet = generic.IntoPacket();
             else
             {
                 packet = version switch
                 {
-                    Version.B394A => (_payload as Into<IB394APacketOut>)?.Into(),
-                    Version.B904 => (_payload as Into<IB904PacketOut>)?.Into(),
+                    Version.B904 => (_payload as IntoPacket<IB904PacketOut>)?.IntoPacket(),
                     
                     Version.NotApplicable =>
                         throw new InvalidOperationException("This version is not applicable"),
@@ -40,7 +42,7 @@ namespace Oldsu.Bancho
             return packet == null ? Array.Empty<byte>() : BanchoSerializer.Serialize(packet);
         }
 
-        public byte[] GetDataByVersion(Version version, bool cache = true) =>
+        public byte[]? GetDataByVersion(Version version, bool cache = true) =>
             !cache ? SerializeDataByVersion(version) : _cachedData.GetOrAdd(version, SerializeDataByVersion);
     }
 }

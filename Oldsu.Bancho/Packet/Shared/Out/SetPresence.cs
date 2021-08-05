@@ -4,7 +4,7 @@ using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct SetPresence : ISharedPacketOut, Into<IB394APacketOut>, Into<IB904PacketOut>
+    public struct SetPresence : ISharedPacketOut, IntoPacket<IB904PacketOut>
     {
         public UserInfo User { get; init; }
         public Presence Presence { get; init; }
@@ -20,40 +20,8 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                 User = userData.UserInfo
             };
         
-        IB394APacketOut Into<IB394APacketOut>.Into()
-        {
-            Packet.Out.B394A.HandleOsuUpdateOnlineUser packet;
 
-            // todo add null check for stats
-            packet = new()
-            {
-                UserID = (int)User.UserID,
-                Username = User.Username,
-                AvatarFilename = "old.jpg",
-                Timezone = 0,
-                Location = "Poopoo",
-                RankedScore = (long)Stats!.RankedScore,
-                TotalScore = (long)Stats!.TotalScore,
-                Playcount = (int)Stats!.Playcount,
-                Accuracy = Stats!.Accuracy / 100f,
-                Rank = 0,
-                BStatusUpdate = new Packet.Out.B394A.bStatusUpdate
-                {
-                    bStatus = (byte)Activity.Action,
-                    BeatmapUpdate = Activity is ActivityWithBeatmap withBeatmap ?
-                        new Packet.Out.B394A.BeatmapUpdate
-                        {
-                            Map = withBeatmap.Map,
-                            MapMD5 = withBeatmap.MapMD5,
-                            Mods = withBeatmap.Mods,
-                        } : null
-                }
-            };
-
-            return packet;
-        }
-
-        IB904PacketOut Into<IB904PacketOut>.Into()
+        IB904PacketOut IntoPacket<IB904PacketOut>.IntoPacket()
         {
             Packet.Out.B904.HandleOsuUpdateOnlineUser packet;
 

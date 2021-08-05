@@ -1,6 +1,5 @@
-﻿using System;
-using System.IO;
-using System.Security.Permissions;
+﻿using System.IO;
+using System.Linq;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Enums;
@@ -43,7 +42,7 @@ namespace Oldsu.Bancho.Packet.Objects.B904
             {
                 ActiveMods = ActiveMods,
                 BeatmapChecksum = BeatmapChecksum,
-                BeatmapName = BeatmapChecksum,
+                BeatmapName = BeatmapName,
                 GameName = GameName,
                 GamePassword = GamePassword,
                 MatchType = MatchType,
@@ -74,5 +73,28 @@ namespace Oldsu.Bancho.Packet.Objects.B904
         [BanchoSerializable] public Mode PlayMode;
         [BanchoSerializable] public MatchScoringTypes ScoringType;
         [BanchoSerializable] public MatchTeamTypes TeamType;
+        
+        public static Match FromMatchState(MatchState matchData)
+        {
+            return new Match
+            {
+                ActiveMods = matchData.Settings.ActiveMods,
+                BeatmapChecksum = matchData.Settings.BeatmapChecksum!,
+                BeatmapName = matchData.Settings.BeatmapName!,
+                BeatmapID = matchData.Settings.BeatmapID,
+                GameName = matchData.Settings.GameName,
+                GamePassword = matchData.Settings.GamePassword!,
+                InProgress = matchData.InProgress,
+                MatchType = matchData.Settings.MatchType,
+                PlayMode = matchData.Settings.PlayMode,
+                ScoringType = matchData.Settings.ScoringType,
+                SlotStatus = matchData.MatchSlots.Select(status => status.SlotStatus).ToArray(),
+                SlotTeams = matchData.MatchSlots.Select(status => status.SlotTeam).ToArray(),
+                SlotIDs = matchData.MatchSlots.Select(status => status.UserID).ToArray(),
+                TeamType = matchData.Settings.TeamType,
+                HostID = matchData.HostID,
+                MatchID = (byte)matchData.MatchID
+            };
+        }
     }
 }
