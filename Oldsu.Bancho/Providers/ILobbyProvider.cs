@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Multiplayer;
+using Oldsu.Bancho.Objects;
 using Oldsu.Utils;
 
 namespace Oldsu.Bancho.Providers
@@ -24,5 +25,9 @@ namespace Oldsu.Bancho.Providers
         Task<bool> LeaveMatch(uint userId);
         Task<bool> MatchLockSlot(uint userId, uint slot);
         Task<bool> MatchStart(uint userId);
+        Task<bool> MatchScoreUpdate(uint userId, ScoreFrame scoreFrame);
+        Task<bool> MatchSkip(uint userId);
+        Task<bool> MatchLoad(uint userId);
+        Task<bool> MatchComplete(uint userId);
     }
 }

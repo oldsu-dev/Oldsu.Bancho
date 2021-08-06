@@ -158,6 +158,7 @@ namespace Oldsu.Bancho.User
         {
             await StreamingProvider.UnregisterStreamer(UserID);
             await UserStateProvider.UnregisterUserAsync(UserID);
+            await LobbyProvider.LeaveMatch(UserID);
             await SubscriptionManager.DisposeAsync();
         }
     }

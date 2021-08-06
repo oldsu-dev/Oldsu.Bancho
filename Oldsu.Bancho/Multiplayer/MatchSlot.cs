@@ -3,7 +3,7 @@ using Oldsu.Multiplayer.Enums;
 
 namespace Oldsu.Bancho.Multiplayer
 {
-    public struct MatchSlot
+    public class MatchSlot
     {
         public SlotStatus SlotStatus { get; set; }
         public SlotTeams SlotTeam { get; set; }
@@ -16,6 +16,11 @@ namespace Oldsu.Bancho.Multiplayer
         {
             get => (SlotStatus & SlotStatus.Complete) > 0;
             set => SlotStatus &= value ? SlotStatus.Complete : 0;
+        }
+
+        public MatchSlot()
+        {
+            Reset();
         }
 
         public void Reset()
@@ -39,7 +44,7 @@ namespace Oldsu.Bancho.Multiplayer
             UserID = userId;
         }
 
-        public void Move(ref MatchSlot newSlot)
+        public void Move(MatchSlot newSlot)
         {
             newSlot.SlotStatus = SlotStatus;
             newSlot.SlotTeam = SlotTeam;

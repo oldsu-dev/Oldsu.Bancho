@@ -46,26 +46,29 @@ namespace Oldsu.Bancho.Multiplayer
 
         public MatchSettings Settings { get; private set; }
         public MatchSlot[] MatchSlots { get; }
-
-        public bool IsEmpty => MatchSlots.All(slot => slot.UserID == -1);
         
+        public bool IsEmpty => MatchSlots.All(slot => slot.UserID == -1);
+        public bool AllCompleted => MatchSlots.All(slot => (slot.SlotStatus & SlotStatus.Playing) == 0 || slot.Completed);
+        public bool AllLoaded => MatchSlots.All(slot => (slot.SlotStatus & SlotStatus.Playing) == 0 || slot.Loaded);
+        public bool AllSkipped => MatchSlots.All(slot => (slot.SlotStatus & SlotStatus.Playing) == 0 || slot.Skipped);
+
         private void UpdateSupportedVersions()
         {
             // Used for compatibility with future versions
         }
-        
+
         public bool ChangeSettings(int slotId, MatchSettings settings)
         {
             if (MatchSlots[slotId].UserID != HostID)
                 return false;
 
             var password = settings.GamePassword;
-            
+
             Settings = settings;
             UpdateSupportedVersions();
 
             settings.GamePassword = password;
-            
+
             return true;
         }
         
@@ -81,12 +84,8 @@ namespace Oldsu.Bancho.Multiplayer
             MatchID = matchId;
             HostID = hostId;
 
-            Array.Fill(MatchSlots, new MatchSlot
-            {
-                UserID = -1, 
-                SlotStatus = SlotStatus.Open, 
-                SlotTeam = SlotTeams.Neutral
-            });
+            for (int i = 0; i < MaxMatchSize; i++)
+                MatchSlots[i] = new MatchSlot();
         }
 
         public uint? Join(int userId, string password)
@@ -96,7 +95,6 @@ namespace Oldsu.Bancho.Multiplayer
             
             var newSlotIndex = Array.FindIndex(MatchSlots, slot => slot.UserID == -1 
                                                                    && slot.SlotStatus != SlotStatus.Locked);
-
             if (newSlotIndex == -1)
                 return null;
 
@@ -109,6 +107,8 @@ namespace Oldsu.Bancho.Multiplayer
         {
             if (MatchSlots[slotId].UserID != HostID)
                 return false;
+
+            InProgress = false;
             
             Array.ForEach(MatchSlots, slot =>
             {
@@ -136,7 +136,7 @@ namespace Oldsu.Bancho.Multiplayer
             if (slotId == newSlotId)
                 return false;
             
-            MatchSlots[slotId].Move(ref MatchSlots[newSlotId]);
+            MatchSlots[slotId].Move(MatchSlots[newSlotId]);
 
             return true;
         }
@@ -205,6 +205,49 @@ namespace Oldsu.Bancho.Multiplayer
             return true;
         }
 
+        public bool Skip(uint slotId)
+        {            
+            var slot = MatchSlots[slotId];
+            
+            if (slot.UserID == -1)
+                return false;
+
+            MatchSlots[slotId].Skipped = true;
+
+            return true;
+        }
+        
+        public bool Complete(uint slotId)
+        {            
+            var slot = MatchSlots[slotId];
+            
+            if (slot.UserID == -1)
+                return false;
+
+            MatchSlots[slotId].Completed = true;
+
+            if (AllCompleted)
+            {
+                InProgress = false;
+                Array.ForEach(MatchSlots, s => s.SlotStatus = SlotStatus.Ready);
+            }
+
+            return true;
+        }
+
+        public bool Load(uint slotId)
+        {            
+            var slot = MatchSlots[slotId];
+            
+            if (slot.UserID == -1)
+                return false;
+
+            MatchSlots[slotId].Completed = true;
+
+            return true;
+        }
+
+        
         public object Clone()
         {
             var match = (MemberwiseClone() as MatchState)!;
@@ -212,5 +255,6 @@ namespace Oldsu.Bancho.Multiplayer
             
             return match;
         }
+
     }
 }
