@@ -7,7 +7,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class MatchLoad : ISharedPacketIn
     {
-        public Task Handle(UserContext userContext, Connection connection) =>
-            userContext.LobbyProvider.MatchLoad(userContext.UserID);
+        public async Task Handle(UserContext userContext, Connection connection)
+        {
+            await userContext.SubscriptionManager.SubscribeToMatchGameUpdates(
+                (await userContext.LobbyProvider.GetMatchGameObservable(userContext.UserID))!);
+            
+            await userContext.LobbyProvider.MatchLoad(userContext.UserID);
+        }
     }
 }   

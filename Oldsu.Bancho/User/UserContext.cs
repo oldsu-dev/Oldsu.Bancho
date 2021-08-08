@@ -13,27 +13,55 @@ namespace Oldsu.Bancho.User
     public class UserSubscriptionManager : IAsyncDisposable, IAsyncObserver<ProviderEvent>
     {
         public event EventHandler<BanchoPacket>? PacketInbound;
-        
+        public event EventHandler<ProviderEvent>? EventInbound;
+
         private IAsyncDisposable? _userStateUnsubscriber;
         private IAsyncDisposable? _userStreamerUnsubscriber;
         private IAsyncDisposable? _userSpectatorUnsubscriber;
         private IAsyncDisposable? _matchUpdateUnsubscriber;
+        private IAsyncDisposable? _userRequestUnsubscriber;
 
+        public bool SubscribedToLobby { get; private set; } = false;
+        
+        public async Task SubscribeToUserRequests(IUserRequestObservable provider)
+        {
+            await UnsubscribeFromUserRequests();
+            _userRequestUnsubscriber = await provider.Subscribe(this);
+        }
+        
+        public async Task UnsubscribeFromUserRequests()
+        {
+            await (_userRequestUnsubscriber?.DisposeAsync() ?? ValueTask.CompletedTask);
+            _userRequestUnsubscriber = null;
+        }
+        
         public async Task SubscribeToMatchUpdates(ILobbyProvider provider)
         {
             await UnsubscribeFromMatchUpdates();
+            SubscribedToLobby = true;
             _matchUpdateUnsubscriber = await provider.Subscribe(this);
         }
         
-        public async Task SubscribeToMatchUpdates(IMatchObservable provider)
+        public async Task SubscribeToMatchSetupUpdates(IMatchSetupObservable provider)
         {
             await UnsubscribeFromMatchUpdates();
+            SubscribedToLobby = false;
             _matchUpdateUnsubscriber = await provider.Subscribe(this);
         }
 
+        public async Task SubscribeToMatchGameUpdates(IMatchGameObservable provider)
+        {
+            await UnsubscribeFromMatchUpdates();
+            SubscribedToLobby = false;
+            _matchUpdateUnsubscriber = await provider.Subscribe(this);
+        }
+        
         // You don't want to anyway
         public async Task UnsubscribeFromMatchUpdates()
-        {
+        {            
+
+            SubscribedToLobby = false;
+            
             await (_matchUpdateUnsubscriber?.DisposeAsync() ?? ValueTask.CompletedTask);
             _matchUpdateUnsubscriber = null;
         }
@@ -77,8 +105,12 @@ namespace Oldsu.Bancho.User
         public Task OnNext(object? sender, ProviderEvent value)
         {
             if (value.DataType == ProviderEventType.BanchoPacket)
-                PacketInbound?.Invoke(this, (BanchoPacket)value.Data);
+            {
+                PacketInbound?.Invoke(this, (BanchoPacket) value.Data!);
+                return Task.CompletedTask;
+            }
 
+            EventInbound?.Invoke(this, value);
             return Task.CompletedTask;
         }
 
@@ -112,7 +144,8 @@ namespace Oldsu.Bancho.User
             uint userId, string username, 
             IUserStateProvider userStateProvider, 
             IStreamingProvider streamingProvider,
-            ILobbyProvider lobbyProvider)
+            ILobbyProvider lobbyProvider,
+            IUserRequestProvider userRequestProvider)
         {
             UserID = userId;
             Username = username;
@@ -121,6 +154,29 @@ namespace Oldsu.Bancho.User
             UserStateProvider = userStateProvider;
             StreamingProvider = streamingProvider;
             LobbyProvider = lobbyProvider;
+            UserRequestProvider = userRequestProvider;
+        }
+
+        public async Task HandleUserRequest(UserRequestTypes request)
+        {
+            switch (request)
+            {
+                case UserRequestTypes.QuitMatch:
+                    await LobbyProvider.TryLeaveMatch(UserID);
+                    
+                    if (!SubscriptionManager.SubscribedToLobby)
+                        await SubscriptionManager.UnsubscribeFromMatchUpdates();
+
+                    break;
+                
+                case UserRequestTypes.SubscribeToMatchSetup:
+                    await SubscriptionManager.SubscribeToMatchSetupUpdates(
+                        (await LobbyProvider.GetMatchSetupObservable(UserID))!);
+
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(request), request, null);
+            }
         }
 
         public async Task InitialRegistration(UserInfo userInfo, Presence presence)
@@ -129,7 +185,7 @@ namespace Oldsu.Bancho.User
             await StreamingProvider.RegisterStreamer(UserID);
 
             await SubscriptionManager.SubscribeToStreamerObservable(
-                await StreamingProvider.GetStreamerObserver(UserID));
+                (await StreamingProvider.GetStreamerObserver(UserID))!);
 
             await using Database database = new Database();
             
@@ -141,11 +197,17 @@ namespace Oldsu.Bancho.User
                     Stats = await database.GetStatsWithRankAsync(userInfo.UserID, 0),
                     UserInfo = userInfo!
                 });
+            
+            await UserRequestProvider.RegisterUser(UserID);
+            
+            await SubscriptionManager.SubscribeToUserRequests(
+                (await UserRequestProvider.GetObservable(UserID))!);
         }
         
         public IUserStateProvider UserStateProvider { get; }
         public IStreamingProvider StreamingProvider { get; }
         public ILobbyProvider LobbyProvider { get; }
+        public IUserRequestProvider UserRequestProvider { get; }
         public UserSubscriptionManager SubscriptionManager { get; }
 
         // private readonly AsyncRwLockWrapper<GameSpectator> _gameSpectator;
@@ -156,9 +218,10 @@ namespace Oldsu.Bancho.User
 
         public async ValueTask DisposeAsync()
         {
-            await StreamingProvider.UnregisterStreamer(UserID);
+            await UserRequestProvider.UnregisterUser(UserID);
             await UserStateProvider.UnregisterUserAsync(UserID);
-            await LobbyProvider.LeaveMatch(UserID);
+            await StreamingProvider.UnregisterStreamer(UserID);
+            await LobbyProvider.TryLeaveMatch(UserID);
             await SubscriptionManager.DisposeAsync();
         }
     }

@@ -30,6 +30,8 @@ namespace Oldsu.Bancho
 {
     public class Server
     {
+        private const string BuildVersion = "Alpha 0.1";
+        
         private readonly WebSocketServer _server;
 
         private AsyncRwLockWrapper<Dictionary<Guid, Connection>> _connections { get; }
@@ -57,8 +59,6 @@ namespace Oldsu.Bancho
                 await Task.Delay(1000, ct);
             }
         }
-        
-
 
         /// <summary>
         ///     Initializes the websocket class
@@ -67,7 +67,8 @@ namespace Oldsu.Bancho
         public Server(string address, 
             IUserStateProvider userDataProvider, 
             IStreamingProvider streamingProvider, 
-            ILobbyProvider lobbyProvider)
+            ILobbyProvider lobbyProvider,
+            IUserRequestProvider userRequestProvider)
         {
             _server = new WebSocketServer(address);
             _connections = new AsyncRwLockWrapper<Dictionary<Guid, Connection>>(new());
@@ -75,11 +76,13 @@ namespace Oldsu.Bancho
             _userStateProvider = userDataProvider;
             _streamingProvider = streamingProvider;
             _lobbyProvider = lobbyProvider;
+            _userRequestProvider = userRequestProvider;
         }
 
         private IUserStateProvider _userStateProvider;
         private IStreamingProvider _streamingProvider;
         private ILobbyProvider _lobbyProvider;
+        private IUserRequestProvider _userRequestProvider;
 
         private static Version GetProtocol(string clientBuild) => clientBuild switch
         {
@@ -170,6 +173,7 @@ namespace Oldsu.Bancho
 
         private async void HandleConnection(IWebSocketConnection webSocketConnection)
         {
+            
             var guid = Guid.NewGuid();
             var connection = new UnauthenticatedConnection(guid, webSocketConnection);
             
@@ -198,10 +202,10 @@ namespace Oldsu.Bancho
 
         private async Task UpgradeConnection(UnauthenticatedConnection connection, Version version, UserInfo userInfo)
         {
-            using var connections = await _connections.AcquireWriteLockGuard();
+            using var connectionsLock = await _connections.AcquireWriteLockGuard();
             
             var userContext = new UserContext(userInfo.UserID, userInfo.Username,
-                _userStateProvider, _streamingProvider, _lobbyProvider);
+                _userStateProvider, _streamingProvider, _lobbyProvider, _userRequestProvider);
             
             var presence = await GetPresenceAsync(userInfo!,
                 connection.ConnectionInfo.Headers.TryGetValue("X-Forwaded-For", out var ip)
@@ -213,11 +217,14 @@ namespace Oldsu.Bancho
             var handler = new ConnectionEventHandler(userContext, upgradedConnection);
 
             userContext.SubscriptionManager.PacketInbound += (_, packet) => handler.PacketInbound(packet);
+            userContext.SubscriptionManager.EventInbound += (_, packet) => 
+                handler.UserRequestInbound((UserRequestTypes)packet.Data!);
+            
             upgradedConnection.PacketReceived += (_, packet) => handler.ProcessPacket(packet);
             upgradedConnection.Disconnected += (_, _) => handler.DisposeUserContext();
 
             // Update connection object
-            (-connections)[upgradedConnection.Guid] = upgradedConnection;
+            connectionsLock.Value[upgradedConnection.Guid] = upgradedConnection;
             upgradedConnection.Disconnected += HandleDisconnection;
 
             upgradedConnection.SendHandshake(

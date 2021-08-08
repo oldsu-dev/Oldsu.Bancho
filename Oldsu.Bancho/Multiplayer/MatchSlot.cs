@@ -11,12 +11,7 @@ namespace Oldsu.Bancho.Multiplayer
         
         public bool Loaded { get; set; }
         public bool Skipped { get; set; }
-        
-        public bool Completed
-        {
-            get => (SlotStatus & SlotStatus.Complete) > 0;
-            set => SlotStatus &= value ? SlotStatus.Complete : 0;
-        }
+        public bool Completed { get; set; }
 
         public MatchSlot()
         {

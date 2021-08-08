@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Oldsu.Bancho.Exceptions.Lobby;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Out.B904;
@@ -14,43 +16,47 @@ namespace Oldsu.Bancho.Providers.InMemory
 {
     // This need some future refactoring
     
-    public class InMemoryMatchObservable : InMemoryObservable<ProviderEvent>, IMatchObservable { }
+    public class InMemoryMatchSetupObservable : InMemoryObservable<ProviderEvent>, IMatchSetupObservable { }
+    public class InMemoryMatchGameObservable : InMemoryObservable<ProviderEvent>, IMatchGameObservable { }
     
     public class InMemoryLobbyProvider : InMemoryObservable<ProviderEvent>, ILobbyProvider
     {
         private const int MatchesAvailable = 256;
 
+        private readonly AsyncRwLockWrapper<MatchState?[]> _matches;
+        private readonly AsyncRwLockWrapper<InMemoryMatchSetupObservable?[]> _matchSetupObservables;
+        private readonly AsyncRwLockWrapper<InMemoryMatchGameObservable?[]> _matchGameObservables;
+        private readonly AsyncRwLockWrapper<Dictionary<uint, JoinedPlayerData>> _joinedPlayers;
+        
         public InMemoryLobbyProvider()
         {
             _matches = new AsyncRwLockWrapper<MatchState?[]>(new MatchState?[MatchesAvailable]);
             _joinedPlayers = new AsyncRwLockWrapper<Dictionary<uint, JoinedPlayerData>>(new());
-            _inGamePlayers = new AsyncRwLockWrapper<Dictionary<uint, InGamePlayerData>>(new());
             
-            _matchObservables =
-                new AsyncRwLockWrapper<InMemoryMatchObservable?[]>(new InMemoryMatchObservable[MatchesAvailable]);
+            _matchSetupObservables =
+                new AsyncRwLockWrapper<InMemoryMatchSetupObservable?[]>(new InMemoryMatchSetupObservable[MatchesAvailable]);
+            
+            _matchGameObservables =
+                new AsyncRwLockWrapper<InMemoryMatchGameObservable?[]>(new InMemoryMatchGameObservable[MatchesAvailable]);
         }
 
-        struct JoinedPlayerData
+        class JoinedPlayerData
         {
+            public JoinedPlayerData(uint matchId)
+            {
+                MatchID = matchId;
+                ScoreFrame = new AsyncMutexWrapper<ScoreFrame?>();
+            }
+            
             public uint MatchID { get; set; }
-            public uint SlotID { get; set; }
-        }
-        
-        struct InGamePlayerData
-        {
-            public uint MatchID { get; set; }
-            public uint SlotID { get; set; }
+            
+            public bool Playing { get; set; }
             
             public AsyncMutexWrapper<ScoreFrame?> ScoreFrame { get; set; }
-            public AsyncMutexWrapper<bool> CanSkip { get; set; }
-            public AsyncMutexWrapper<bool> CanLoad { get; set; }
-            public AsyncMutexWrapper<bool> CanComplete { get; set; }
+            
+            public bool CanSkip { get; set; }
+            public bool CanLoad { get; set; }
         }
-        
-        private readonly AsyncRwLockWrapper<MatchState?[]> _matches;
-        private readonly AsyncRwLockWrapper<InMemoryMatchObservable?[]> _matchObservables;
-        private readonly AsyncRwLockWrapper<Dictionary<uint, JoinedPlayerData>> _joinedPlayers;
-        private readonly AsyncRwLockWrapper<Dictionary<uint, InGamePlayerData>> _inGamePlayers;
 
         private async Task NotifyMatchUpdate(MatchState data)
         {
@@ -65,12 +71,14 @@ namespace Oldsu.Bancho.Providers.InMemory
                 DataType = ProviderEventType.BanchoPacket
             };
             
-            await _matchObservables.ReadAsync(async observables =>
+            await _matchSetupObservables.ReadAsync(async observables =>
+                await (observables[data.MatchID]?.Notify(ev) ?? Task.CompletedTask));
+            
+            await _matchGameObservables.ReadAsync(async observables =>
                 await (observables[data.MatchID]?.Notify(ev) ?? Task.CompletedTask));
             
             await Notify(ev);
         }
-
 
         private async Task NotifyMatchDisband(uint matchId)
         {
@@ -81,7 +89,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 DataType = ProviderEventType.BanchoPacket
             };
             
-            await _matchObservables.ReadAsync(async observables =>
+            await _matchSetupObservables.ReadAsync(async observables =>
                 await (observables[matchId]?.Notify(ev) ?? Task.CompletedTask));
             
             await Notify(ev);
@@ -96,7 +104,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 DataType = ProviderEventType.BanchoPacket
             };
             
-            await _matchObservables.ReadAsync(async observables =>
+            await _matchSetupObservables.ReadAsync(async observables =>
                 await (observables[data.MatchID]?.Notify(ev) ?? Task.CompletedTask));
         }
 
@@ -109,7 +117,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 DataType = ProviderEventType.BanchoPacket
             };
             
-            await _matchObservables.ReadAsync(async observables =>
+            await _matchGameObservables.ReadAsync(async observables =>
                 await (observables[matchId]?.Notify(ev) ?? Task.CompletedTask));
         }
 
@@ -122,7 +130,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 DataType = ProviderEventType.BanchoPacket
             };
             
-            await _matchObservables.ReadAsync(async observables =>
+            await _matchGameObservables.ReadAsync(async observables =>
                 await (observables[matchId]?.Notify(ev) ?? Task.CompletedTask));
         }
         
@@ -135,7 +143,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 DataType = ProviderEventType.BanchoPacket
             };
             
-            await _matchObservables.ReadAsync(async observables =>
+            await _matchGameObservables.ReadAsync(async observables =>
                 await (observables[matchId]?.Notify(ev) ?? Task.CompletedTask));
         }
 
@@ -148,50 +156,98 @@ namespace Oldsu.Bancho.Providers.InMemory
                 DataType = ProviderEventType.BanchoPacket
             };
             
-            await _matchObservables.ReadAsync(async observables =>
-                await (observables[matchId]?.Notify(ev) ?? Task.CompletedTask));
+            var evRequest = new ProviderEvent
+            {
+                ProviderType = ProviderType.Lobby,
+                Data = UserRequestTypes.SubscribeToMatchSetup,
+                DataType = ProviderEventType.UserRequest
+            };            
+            
+            await _matchGameObservables.ReadAsync(async observables =>
+            {
+                var observable = observables[matchId];
+
+                if (observable is not null)
+                {
+                    await observables[matchId]!.Notify(ev);
+                    await observables[matchId]!.Notify(evRequest);
+                }
+            });
         }
         
         public async Task<MatchState?> GetMatchState(uint matchId)
         {
             using var matchesLock = await _matches.AcquireReadLockGuard();
-            return (MatchState?)(-matchesLock)[matchId]?.Clone() ?? null;
+            var match = matchesLock.Value[matchId];
+            
+            return (MatchState?)match?.Clone() ?? null;
         }
 
-        public async Task<IMatchObservable?> MatchGetObservable(uint userId)
+        public async Task<IMatchSetupObservable?> GetMatchSetupObservable(uint userId)
         {
-            using var pairsLock = await _joinedPlayers.AcquireReadLockGuard();
-            using var observablesLock = await _matchObservables.AcquireReadLockGuard();
-            
-            if (!(-pairsLock).TryGetValue(userId, out var pair))
+            using var joinedPlayers = await _joinedPlayers.AcquireReadLockGuard();
+            using var observablesLock = await _matchSetupObservables.AcquireReadLockGuard();
+
+            if (!joinedPlayers.Value.TryGetValue(userId, out var playerData))
                 return null;
 
-            return (-observablesLock)[pair.MatchID];
+            return observablesLock.Value[playerData.MatchID];
         }
+        
+        public async Task<IMatchGameObservable?> GetMatchGameObservable(uint userId)
+        {
+            using var joinedPlayers = await _joinedPlayers.AcquireReadLockGuard();
+            using var observablesLock = await _matchGameObservables.AcquireReadLockGuard();
+            
+            if (!joinedPlayers.Value.TryGetValue(userId, out var playerData))
+                throw new UserNotInMatchException();
+
+            if (!playerData.Playing)
+                throw new UserNotPlayingException();
+
+            return observablesLock.Value[playerData.MatchID];
+        }
+
 
         public async Task<MatchState?> CreateMatch(uint userId, MatchSettings matchSettings)
         {
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-
-            for (uint i = 0; i < MatchesAvailable; i++)
+            MatchState match;
+            
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
-                if ((-matchesLock)[i] != null) 
-                    continue;
-                
-                var match = (-matchesLock)[i] = new MatchState((int)i, (int)userId, matchSettings);
-                
-                var newSlot = match.Join((int)userId, matchSettings.GamePassword!);
-                
-                await _joinedPlayers.WriteAsync(pairs => 
-                    pairs.Add(userId, new JoinedPlayerData{ MatchID = i, SlotID = newSlot!.Value}));
+                if (joinedPlayersLock.Value.ContainsKey(userId))
+                    throw new UserAlreadyInMatchException();
 
-                await _matchObservables.WriteAsync(observables => 
-                    observables[i] = new InMemoryMatchObservable()); 
-                
-                await NotifyMatchUpdate((match.Clone() as MatchState)!);
-                return match;
+                using var matchesLock = await _matches.AcquireWriteLockGuard();
+
+                for (uint matchId = 0; matchId < MatchesAvailable; matchId++)
+                {
+                    if (matchesLock.Value[matchId] != null)
+                        continue;
+
+                    match = matchesLock.Value[matchId] = new MatchState((int) matchId, (int) userId, matchSettings);
+                    _ = match.Join((int) userId, matchSettings.GamePassword!);
+
+                    await _joinedPlayers.Upgrade(joinedPlayersLock);
+
+                    joinedPlayersLock.Value.Add(userId, new JoinedPlayerData(matchId));
+
+                    await _matchSetupObservables.WriteAsync(observables =>
+                        observables[matchId] = new InMemoryMatchSetupObservable());
+
+                    match = (match.Clone() as MatchState)!;
+                    
+                    goto MatchCreated;
+                }
+
+                goto MatchNotCreated;
             }
             
+            MatchCreated:
+            await NotifyMatchUpdate(match);
+            return match;
+            
+            MatchNotCreated:
             return null;
         }
 
@@ -201,268 +257,387 @@ namespace Oldsu.Bancho.Providers.InMemory
         
         public async Task<MatchState?> JoinMatch(uint userId, uint matchId, string password)
         {
-            if (await _joinedPlayers.ReadAsync(pairs => pairs.ContainsKey(userId)))
-                return null;
+            MatchState match;
             
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-            var matchArrayLength = (-matchesLock).Length;
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
+            {
+                if (joinedPlayersLock.Value.ContainsKey(userId))
+                    throw new UserAlreadyInMatchException();
 
-            if (matchId >= matchArrayLength)
-                return null;
+                using var matchesLock = await _matches.AcquireReadLockGuard();
+                
+                var matchArrayLength = matchesLock.Value.Length;
+                if (matchId >= matchArrayLength)
+                    throw new InvalidMatchIDException();
 
-            if ((-matchesLock)[matchId] == null)
-                return null;
-            
-            var match = (-matchesLock)[matchId];
-            
-            var newSlot = match!.Join((int)userId, password);
-            if (newSlot is null)
-                return null;
+                if (matchesLock.Value[matchId] == null)
+                    throw new MatchNotFoundException();
 
-            await _joinedPlayers.WriteAsync(pairs => 
-                pairs.Add(userId, new JoinedPlayerData{ MatchID = matchId, SlotID = newSlot!.Value}));
+                await _matches.Upgrade(matchesLock);
 
-            await NotifyMatchUpdate((match.Clone() as MatchState)!);
-            
-            return (MatchState)match.Clone();
+                match = matchesLock.Value[matchId]!;
+
+                var newSlot = match!.Join((int) userId, password);
+                if (newSlot is null)
+                    return null;
+
+                await _joinedPlayers.Upgrade(joinedPlayersLock);
+
+                joinedPlayersLock.Value.Add(userId, new JoinedPlayerData(matchId));
+            }
+
+            await NotifyMatchUpdate(match);
+            return match;
         }
         
-        public async Task<bool> LeaveMatch(uint userId)
+        public async Task<bool> TryLeaveMatch(uint userId)
         {
-            JoinedPlayerData playerData = default;
-            if (!await _joinedPlayers.ReadAsync(pairs => pairs.TryGetValue(userId, out playerData)))
-                return false;
-            
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
+            MatchState match;
+            JoinedPlayerData playerData;
 
-            var match = (-matchesLock)[playerData.MatchID]!;
-            
-            var (success, disbandMatch) = match.Leave((int)playerData.SlotID);
-            if (!success)
-                return false;
-            
-            await _joinedPlayers.WriteAsync(players => players.Remove(userId));
-            await _inGamePlayers.WriteAsync(players => players.Remove(userId));
-
-            if (disbandMatch)
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
-                (-matchesLock)[playerData.MatchID] = null;
-                await NotifyMatchDisband(playerData.MatchID);
-            } else
-                await NotifyMatchUpdate((match.Clone() as MatchState)!);
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out playerData!))
+                    return false;
+                
+                using (var matchesLock = await _matches.AcquireWriteLockGuard())
+                {
+                    match = matchesLock.Value[playerData.MatchID]!;
+                    match.Leave(userId, out var disbandMatch);
 
+                    await _joinedPlayers.Upgrade(joinedPlayersLock);
+                    joinedPlayersLock.Value.Remove(userId);
+                    
+                    if (disbandMatch)
+                    {
+                        matchesLock.Value[playerData.MatchID] = null;
+                        await _matchSetupObservables.WriteAsync(observables => observables[playerData.MatchID] = null);
+                        await _matchGameObservables.WriteAsync(observables => observables[playerData.MatchID] = null);
+                            
+                        goto MatchDisbanded;
+                    }
+
+                    match = (match.Clone() as MatchState)!;
+                    goto PlayerLeft;
+                }
+            }
+
+            MatchDisbanded:
+            await NotifyMatchDisband(playerData.MatchID);
+            return true;
+            
+            PlayerLeft:
+            await NotifyMatchUpdate(match);
             return true;
         }
         
-        private async Task<bool> ExecuteOperationOnCurrentMatch(uint userId, Func<MatchState, int, bool> fn)
+        private async Task ExecuteOperationOnCurrentMatch(uint userId, Func<MatchState, bool> fn)
         {
-            JoinedPlayerData playerData = default;
-            if (!await _joinedPlayers.ReadAsync(pairs => pairs.TryGetValue(userId, out playerData)))
-                return false;
+            MatchState match;
             
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-            
-            bool success = fn((-matchesLock)[playerData.MatchID]!, (int)playerData.SlotID);
-
-            if (success)
-                await NotifyMatchUpdate(((-matchesLock)[playerData.MatchID]!.Clone() as MatchState)!);
-
-            return success;
-        }
-        
-        private async Task<bool> ExecuteOperationOnCurrentMatch(uint userId, Func<MatchState, int, Task<bool>> fn)
-        {
-            JoinedPlayerData playerData = default;
-            if (!await _joinedPlayers.ReadAsync(pairs => pairs.TryGetValue(userId, out playerData)))
-                return false;
-            
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-
-            bool success = await fn((-matchesLock)[playerData.MatchID]!, (int)playerData.SlotID);
-
-            if (success)
-                await NotifyMatchUpdate(((-matchesLock)[playerData.MatchID]!.Clone() as MatchState)!);
-
-            return success;
-        }
-
-        public async Task<uint?> GetCurrentMatch(uint userId)
-        {
-            using var pairsLock = await _joinedPlayers.AcquireReadLockGuard();
-            
-            if (!(-pairsLock).TryGetValue(userId, out var pair))
-                return null;
-
-            return pair.MatchID;
-        }
-        
-        public Task<bool> MatchSetReady(uint userId) => 
-            ExecuteOperationOnCurrentMatch(userId, 
-                (match, slotId) => match.SetSlotStatus(slotId, SlotStatus.Ready));
-
-        public Task<bool> MatchGotBeatmap(uint userId) =>
-            ExecuteOperationOnCurrentMatch(userId, (match, slotId) => match.GotBeatmap(slotId));
-
-        public Task<bool> MatchSetUnready(uint userId) => 
-            ExecuteOperationOnCurrentMatch(userId, 
-                (match, slotId) => match.SetSlotStatus(slotId, SlotStatus.NotReady));
-        
-        public Task<bool> MatchMoveSlot(uint userId, int newSlot) => 
-            ExecuteOperationOnCurrentMatch(userId, 
-                async (match, slotId) =>
-                {
-                    if (!match.MoveSlot(slotId, newSlot)) 
-                        return false;
-                    
-                    await _joinedPlayers.WriteAsync(pairs =>
-                        pairs[userId] = new JoinedPlayerData{MatchID = (uint) match.MatchID, SlotID = (uint)newSlot});
-
-                    return true;
-
-                });
-        
-        public Task<bool> MatchChangeSettings(uint userId, MatchSettings matchSettings) => 
-            ExecuteOperationOnCurrentMatch(userId, 
-                (match, slotId) => match.ChangeSettings(slotId, matchSettings));
-
-        public Task<bool> MatchNoBeatmap(uint userId) =>
-            ExecuteOperationOnCurrentMatch(userId, (match, slotId) => match.NoBeatmap(slotId));
-
-        public Task<bool> MatchChangeMods(uint userId, short mods) =>
-            ExecuteOperationOnCurrentMatch(userId, (match, slotId) => match.ChangeMods(slotId, mods));
-        
-        public Task<bool> MatchLockSlot(uint userId, uint slot) =>
-            ExecuteOperationOnCurrentMatch(userId, (match, slotId) => match.LockSlot(slotId, (int)slot));
-
-        public async Task<bool> MatchStart(uint userId)
-        {
-            JoinedPlayerData playerData = default;
-            if (!await _joinedPlayers.ReadAsync(pairs => pairs.TryGetValue(userId, out playerData)))
-                return false;
-            
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-            var match = (-matchesLock)[playerData.MatchID]!;
-            
-            if (!match.Start((int)playerData.SlotID))
-                return false;
-
-            var inMatchPlayers = match.MatchSlots
-                .Where((slot) => slot.UserID != -1)
-                .Select((slot, i) => new
-                {
-                    SlotID = i,
-                    slot.UserID
-                });
-
-            await _inGamePlayers.WriteAsync(players =>
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
-                foreach (var player in inMatchPlayers)
-                    players.Add((uint) player.UserID, new InGamePlayerData
-                    {
-                        CanComplete = new AsyncMutexWrapper<bool>(true),
-                        CanSkip = new AsyncMutexWrapper<bool>(true),
-                        CanLoad = new AsyncMutexWrapper<bool>(true),
-                        ScoreFrame = new AsyncMutexWrapper<ScoreFrame?>(null),
-                        MatchID = (uint) match.MatchID,
-                        SlotID = (uint) player.SlotID
-                    });
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                    throw new UserNotInMatchException();
 
+                if (playerData.Playing)
+                    throw new UserPlayingException();
+                
+                using (var matchesLock = await _matches.AcquireWriteLockGuard())
+                {
+                    match = matchesLock.Value[playerData.MatchID]!;
+                    var notify = fn(match);
+
+                    if (notify)
+                    {
+                        match = (match.Clone() as MatchState)!;
+                        goto DoNotify;
+                    }
+                    
+                    goto DontNotify;
+                }
+            }
+
+            DoNotify:
+            await NotifyMatchUpdate(match);
+            
+            DontNotify: ;
+        }
+        
+        public Task MatchSetReady(uint userId) => 
+            ExecuteOperationOnCurrentMatch(userId, 
+                match =>
+                {
+                    match.Ready(userId);
+                    return true;
+                });
+
+        public Task MatchGotBeatmap(uint userId) =>
+            ExecuteOperationOnCurrentMatch(userId, 
+                match =>
+                {
+                    match.GotBeatmap(userId);
+                    return true;
+                });
+
+        public Task MatchSetUnready(uint userId) => 
+            ExecuteOperationOnCurrentMatch(userId, 
+                match =>
+                {
+                    match.Unready(userId);
+                    return true;
+                });
+        
+        public Task MatchMoveSlot(uint userId, uint newSlot) => 
+            ExecuteOperationOnCurrentMatch(userId, 
+                match => match.MoveSlot(userId, newSlot));
+        
+        public Task MatchChangeSettings(uint userId, MatchSettings matchSettings) => 
+            ExecuteOperationOnCurrentMatch(userId, 
+                match =>
+                {
+                    match.ChangeSettings(userId, matchSettings);
+                    return true;
+                });
+
+        public Task MatchChangeTeam(uint userId)  =>
+            ExecuteOperationOnCurrentMatch(userId, match =>
+            {
+                match.ChangeTeam(userId);
+                return true;
+            });
+        
+        public Task MatchNoBeatmap(uint userId) =>
+            ExecuteOperationOnCurrentMatch(userId, match =>
+            {
+                match.NoBeatmap(userId);
+                return true;
             });
 
-            var notifyMatchData = (match.Clone() as MatchState)!;
+        public Task MatchChangeMods(uint userId, short mods) =>
+            ExecuteOperationOnCurrentMatch(userId, match =>
+            {
+                 match.ChangeMods(userId, mods);
+                 return true;
+            });
 
-            await NotifyMatchUpdate(notifyMatchData);
-            await NotifyMatchStart(notifyMatchData);
+        public async Task<uint?> MatchLockSlot(uint userId, uint slot)
+        {
+            MatchState match;
+            uint? kickUser;
+            
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
+            {
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                    throw new UserNotInMatchException();
 
-            return true;
+                if (playerData.Playing)
+                    throw new UserPlayingException();
+                
+                using (var matchesLock = await _matches.AcquireWriteLockGuard())
+                {
+                    match = matchesLock.Value[playerData.MatchID]!;
+                    
+                    var notify = match.LockSlot(userId, slot, out kickUser);
+
+                    if (kickUser is not null)
+                    {
+                        await _joinedPlayers.Upgrade(joinedPlayersLock);
+                        joinedPlayersLock.Value.Remove(kickUser.Value);
+                    }
+
+                    if (notify)
+                    {
+                        match = (match.Clone() as MatchState)!;
+                        goto DoNotify;
+                    }
+                    
+                    goto DontNotify;
+                }
+            }
+
+            DoNotify:
+            await NotifyMatchUpdate(match);
+            
+            DontNotify: ;
+            return kickUser;
+        }
+
+        public async Task MatchStart(uint userId)
+        {
+            MatchState match;
+            
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
+            {
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                    throw new UserNotInMatchException();
+
+                uint[] playingUsers;
+                
+                using (var matchesLock = await _matches.AcquireWriteLockGuard())
+                {
+                    match = matchesLock.Value[playerData!.MatchID]!;
+                    match.Start(userId);
+                    
+                    playingUsers = match.GetPlayingUsersIDs();
+                }
+
+                Array.ForEach(playingUsers, user =>
+                {
+                    playerData = joinedPlayersLock.Value[user];
+                    
+                    playerData.Playing = true;
+                    playerData.ScoreFrame.SetValueAsync(new ScoreFrame());
+                });
+                
+                await _matchGameObservables.WriteAsync(observables =>
+                    observables[playerData.MatchID] = new InMemoryMatchGameObservable());
+                
+                match = (match.Clone() as MatchState)!;
+            }
+
+            await NotifyMatchUpdate(match);
+            await NotifyMatchStart(match);
         }
         
-        public async Task<bool> MatchScoreUpdate(uint userId, ScoreFrame scoreFrame)
+        public async Task MatchScoreUpdate(uint userId, ScoreFrame scoreFrame)
         {
-            using var inGamePlayersLock = await _inGamePlayers.AcquireReadLockGuard();
+            uint matchId; 
+            
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
+            {
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                    throw new UserNotInMatchException();
 
-            if (!(-inGamePlayersLock).TryGetValue(userId, out var playerData))
-                return false;
+                if (!playerData.Playing)
+                    throw new UserNotPlayingException();
 
-            scoreFrame.SlotID = (byte)playerData.SlotID;
+                using var matchesLock = await _matches.AcquireReadLockGuard();
+                
+                scoreFrame.SlotID = (byte)matchesLock.Value[playerData.MatchID]!.GetSlotIndexByPlayerID(userId);
 
-            await playerData.ScoreFrame.SetValueAsync(scoreFrame);
-            await NotifyMatchScore(playerData.MatchID, scoreFrame);
+                await playerData.ScoreFrame.SetValueAsync(scoreFrame);
+                
+                matchId = playerData.MatchID;
+            }
 
-            return true;
+            await NotifyMatchScore(matchId, scoreFrame);
         }
         
-        public async Task<bool> MatchSkip(uint userId)
+        public async Task MatchSkip(uint userId)
         {
-            using var inGamePlayersLock = await _inGamePlayers.AcquireReadLockGuard();
-
-            if (!(-inGamePlayersLock).TryGetValue(userId, out var playerData))
-                return false;
-
-            if (!await playerData.CanSkip.LockAsync(v => v))
-                return false;
-
-            await playerData.CanSkip.SetValueAsync(false);
+            uint matchId; 
             
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-            var match = (-matchesLock)[playerData.MatchID]!;
-            
-            match.Skip(playerData.SlotID);
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
+            {
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                    throw new UserNotInMatchException();
 
-            if (match.AllSkipped)
-                await NotifyMatchSkip((uint)match.MatchID);
+                if (!playerData.Playing)
+                    throw new UserNotPlayingException();
+
+                using var matchesLock = await _matches.AcquireWriteLockGuard();
+                
+                playerData.CanSkip = false;
+
+                var match = matchesLock.Value[playerData.MatchID]!;
+                match.Skip(userId);
+
+                matchId = playerData.MatchID;
+                
+                if (match.AllSkipped)
+                    goto DoNotifySkip;
+                
+                goto DontNotifySkip;
+            }
             
-            return true;
+            DoNotifySkip:
+            await NotifyMatchSkip(matchId);
+            
+            DontNotifySkip: ;
         }
         
-        public async Task<bool> MatchLoad(uint userId)
+        public async Task MatchLoad(uint userId)
         {
-            using var inGamePlayersLock = await _inGamePlayers.AcquireReadLockGuard();
+            uint matchId; 
             
-            if (!(-inGamePlayersLock).TryGetValue(userId, out var playerData))
-                return false;
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
+            {
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                    throw new UserNotInMatchException();
 
-            if (!await playerData.CanLoad.LockAsync(v => v))
-                return false;
+                if (!playerData.Playing)
+                    throw new UserNotPlayingException();
 
-            await playerData.CanLoad.SetValueAsync(false);
-            
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-            var match = (-matchesLock)[playerData.MatchID]!;
-            
-            match.Complete(playerData.SlotID);
+                using var matchesLock = await _matches.AcquireWriteLockGuard();
+                
+                playerData.CanLoad = false;
 
-            if (match.AllLoaded)
-                await NotifyMatchLoad((uint)match.MatchID);
+                var match = matchesLock.Value[playerData.MatchID]!;
+                match.Load(userId);
+
+                matchId = playerData.MatchID;
+                
+                if (match.AllLoaded)
+                    goto DoNotifyLoad;
+                
+                goto DontNotifyLoad;
+            }
             
-            return true;
+            DoNotifyLoad:
+            await NotifyMatchLoad(matchId);
+            
+            DontNotifyLoad: ;
         }
         
         public async Task<bool> MatchComplete(uint userId)
         {
-            var inGamePlayersLock = await _inGamePlayers.AcquireReadLockGuard();
-            
-            if (!(-inGamePlayersLock).TryGetValue(userId, out var playerData))
-                return false;
+            uint matchId;
+            MatchState match;
 
-            if (!await playerData.CanComplete.LockAsync(v => v))
-                return false;
+            using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
+            {
+                if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                    throw new UserNotInMatchException();
 
-            await playerData.CanComplete.SetValueAsync(false);
-            
-            using var matchesLock = await _matches.AcquireWriteLockGuard();
-            var match = (-matchesLock)[playerData.MatchID]!;
-            
-            match.Complete(playerData.SlotID);
-            
-            if (match.AllCompleted)
-                await NotifyMatchComplete((uint)match.MatchID);
+                if (!playerData.Playing)
+                    throw new UserNotPlayingException();
 
-            inGamePlayersLock.Dispose();
+                using var matchesLock = await _matches.AcquireWriteLockGuard();
+                
+                match = matchesLock.Value[playerData.MatchID]!;
+                match.Complete(userId);
+
+                matchId = playerData.MatchID;
+
+                if (match.AllCompleted)
+                {
+                    Array.ForEach(match.GetPlayingUsersIDs(), user =>
+                    {
+                        playerData = joinedPlayersLock.Value[user];
+                    
+                        playerData.Playing = false;
+                        playerData.ScoreFrame.SetValueAsync(null);
+                    });
+                        
+                    match.Reset();
+                    
+                    match = (match.Clone() as MatchState)!;
+                    
+                    goto DoNotifyComplete;
+                }
+
+                goto DontNotifyComplete;
+            }
             
-            await _inGamePlayers.WriteAsync(players => players.Remove(userId));
-            
+            DoNotifyComplete:
+            await NotifyMatchUpdate(match);
+            await NotifyMatchComplete(matchId);
             return true;
+            
+            DontNotifyComplete: 
+            return false;
         }
+
     }
 }

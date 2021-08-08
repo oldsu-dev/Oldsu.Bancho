@@ -8,7 +8,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            await userContext.LobbyProvider.LeaveMatch(userContext.UserID);
+            await userContext.LobbyProvider.TryLeaveMatch(userContext.UserID);
             await userContext.SubscriptionManager.UnsubscribeFromMatchUpdates();
         }
     }

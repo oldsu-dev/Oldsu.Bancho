@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using Oldsu.Bancho.Exceptions.Match;
 using Oldsu.Bancho.Multiplayer.Enums;
 using Oldsu.Bancho.Packet;
 using Oldsu.Enums;
@@ -57,17 +58,28 @@ namespace Oldsu.Bancho.Multiplayer
             // Used for compatibility with future versions
         }
 
-        public bool ChangeSettings(int slotId, MatchSettings settings)
+        public bool ChangeSettings(uint userId, MatchSettings settings)
         {
-            if (MatchSlots[slotId].UserID != HostID)
+            if (userId != HostID)
                 return false;
 
-            var password = settings.GamePassword;
-
             Settings = settings;
-            UpdateSupportedVersions();
 
-            settings.GamePassword = password;
+            switch (settings.TeamType)
+            {
+                case MatchTeamTypes.HeadToHead:
+                case MatchTeamTypes.TagCoop:
+                    Array.ForEach(MatchSlots, slots => slots.SlotTeam = SlotTeams.Neutral);
+                    break;
+                case MatchTeamTypes.TeamVs:
+                case MatchTeamTypes.TagTeamVs:
+                    Array.ForEach(MatchSlots, slots => slots.SlotTeam = SlotTeams.Blue);
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+            
+            UpdateSupportedVersions();
 
             return true;
         }
@@ -99,154 +111,170 @@ namespace Oldsu.Bancho.Multiplayer
                 return null;
 
             MatchSlots[newSlotIndex].SetUser(userId);
-  
             return (uint)newSlotIndex;
         }
 
-        public bool Start(int slotId)
+        public void CheckHost(uint requesterUserId)
         {
-            if (MatchSlots[slotId].UserID != HostID)
-                return false;
+            if (requesterUserId != HostID)
+                throw new UserNotHostException();
+        }
 
-            InProgress = false;
+        public uint[] GetPlayingUsersIDs()
+        {
+            return MatchSlots.Where(slot => (slot.SlotStatus & SlotStatus.Playing) > 0)
+                .Select(slot => (uint) slot.UserID).ToArray();
+        }
+        
+        public MatchSlot GetSlotByPlayerID(uint requesterUserId)
+        {            
+            var index = Array.FindIndex(MatchSlots, slot => slot.UserID == requesterUserId);
+            return MatchSlots[index];
+        }
+        
+        public uint GetSlotIndexByPlayerID(uint requesterUserId)
+        {            
+            var index = Array.FindIndex(MatchSlots, slot => slot.UserID == requesterUserId);
+            return (uint)index;
+        }
+        
+        public void Start(uint requesterSlotId)
+        {
+            CheckHost(requesterSlotId);
+
+            InProgress = true;
             
             Array.ForEach(MatchSlots, slot =>
             {
                 if (slot.SlotStatus == SlotStatus.Ready)
                     slot.SlotStatus = SlotStatus.Playing;
             });
-
-            return true;
         }
         
-        public bool SetSlotStatus(int slotId, SlotStatus status)
+        public bool MoveSlot(uint requesterUserId, uint newSlotId)
         {
-            var slot = MatchSlots[slotId];
+            if (newSlotId >= 8)
+                throw new InvalidSlotIDException();
             
-            if (slot.UserID == -1)
+            var currentSlot = GetSlotByPlayerID(requesterUserId);
+            var newSlot = MatchSlots[newSlotId];
+
+            if (currentSlot.UserID == newSlot.UserID)
                 return false;
             
-            MatchSlots[slotId].SlotStatus = status;
+            currentSlot.Move(newSlot);
 
             return true;
         }
 
-        public bool MoveSlot(int slotId, int newSlotId)
+        public void Leave(uint requesterUserId, out bool disbandRequested)
         {
-            if (slotId == newSlotId)
-                return false;
+            disbandRequested = false;
+
+            var slot = GetSlotByPlayerID(requesterUserId);
             
-            MatchSlots[slotId].Move(MatchSlots[newSlotId]);
-
-            return true;
-        }
-
-        public (bool, bool) Leave(int slotId)
-        {
-            var slot = MatchSlots[slotId];
-            if (slot.UserID == -1)
-                return (false, false);
-
-            MatchSlots[slotId].Reset();
+            slot.Reset();
 
             var newHost = Array.FindIndex(MatchSlots, s => s.UserID != -1);
             if (newHost == -1)
-                return (true, true);
-            
-            HostID = MatchSlots[newHost].UserID;
-            
-            return (true, false);
-        }
-
-        public bool NoBeatmap(int slotId)
-        {
-            var slot = MatchSlots[slotId];
-            
-            if (slot.UserID == -1)
-                return false;
-
-            MatchSlots[slotId].SlotStatus |= SlotStatus.NoMap;
-
-            return true;
-        }
-        
-        public bool GotBeatmap(int slotId)
-        {
-            var slot = MatchSlots[slotId];
-            
-            if (slot.UserID == -1)
-                return false;
-
-            MatchSlots[slotId].SlotStatus &= ~SlotStatus.NoMap;
-
-            return true;
-        }
-        
-        public bool ChangeMods(int slotId, short mods)
-        {
-            if (MatchSlots[slotId].UserID != HostID)
-                return false;
-
-            Settings.ActiveMods = mods;
-
-            return true;
-        }
-
-        public bool LockSlot(int slotId, int lockedSlot)
-        {
-            if (MatchSlots[slotId].UserID != HostID)
-                return false;
-
-            if (slotId == lockedSlot)
-                return false;
-
-            MatchSlots[lockedSlot].ToggleLock();
-
-            return true;
-        }
-
-        public bool Skip(uint slotId)
-        {            
-            var slot = MatchSlots[slotId];
-            
-            if (slot.UserID == -1)
-                return false;
-
-            MatchSlots[slotId].Skipped = true;
-
-            return true;
-        }
-        
-        public bool Complete(uint slotId)
-        {            
-            var slot = MatchSlots[slotId];
-            
-            if (slot.UserID == -1)
-                return false;
-
-            MatchSlots[slotId].Completed = true;
-
-            if (AllCompleted)
             {
-                InProgress = false;
-                Array.ForEach(MatchSlots, s => s.SlotStatus = SlotStatus.Ready);
+                disbandRequested = true;
+                return;
             }
 
-            return true;
+            if (InProgress && GetPlayingUsersIDs().Length == 0)
+            {
+                Reset();
+            }
+            
+            HostID = MatchSlots[newHost].UserID;
         }
 
-        public bool Load(uint slotId)
-        {            
-            var slot = MatchSlots[slotId];
+        public void NoBeatmap(uint requesterUserId)
+        {
+            var slot = GetSlotByPlayerID(requesterUserId);
+            slot.SlotStatus |= SlotStatus.NoMap;
+        }
+        
+        public void GotBeatmap(uint requesterUserId)
+        {
+            var slot = GetSlotByPlayerID(requesterUserId);
+            slot.SlotStatus &= ~SlotStatus.NoMap;
+        }
+        
+        public void ChangeMods(uint requesterUserId, short mods)
+        {
+            CheckHost(requesterUserId);
+            Settings.ActiveMods = mods;
+        }
+
+        public bool LockSlot(uint requesterUserId, uint lockedSlot, out uint? kick)
+        {
+            CheckHost(requesterUserId);
+            kick = null;
             
-            if (slot.UserID == -1)
+            if (GetSlotIndexByPlayerID(requesterUserId) == lockedSlot)
                 return false;
 
-            MatchSlots[slotId].Completed = true;
+            if (lockedSlot >= 8)
+                throw new InvalidSlotIDException();
+
+            var slot = MatchSlots[lockedSlot];
+
+            if (slot.UserID != -1)
+                kick = (uint)slot.UserID;
+            
+            slot.ToggleLock();
 
             return true;
         }
 
+        public void Skip(uint requesterUserId)
+        {
+            var slot = GetSlotByPlayerID(requesterUserId);
+            slot.Skipped = true;
+        }
+        
+        public void Complete(uint requesterUserId)
+        {            
+            var slot = GetSlotByPlayerID(requesterUserId);
+            slot.Completed = true;
+        }
+
+        public void Reset()
+        {
+            InProgress = false;
+            
+            Array.ForEach(MatchSlots, slot =>
+            {
+                if (slot.SlotStatus != SlotStatus.Playing) 
+                    return;
+                
+                slot.SlotStatus = SlotStatus.NotReady;
+                slot.Completed = false;
+                slot.Loaded = false;
+                slot.Skipped = false;
+            });
+        }
+
+        public void Load(uint requesterUserId)
+        {            
+            var slot = GetSlotByPlayerID(requesterUserId);
+            slot.Loaded = true;
+        }
+        
+        
+        public void Ready(uint requesterUserId)
+        {
+            var slot = GetSlotByPlayerID(requesterUserId);
+            slot.SlotStatus = SlotStatus.Ready;
+        }
+        
+        public void Unready(uint requesterSlotId)
+        {
+            var slot = GetSlotByPlayerID(requesterSlotId);
+            slot.SlotStatus = SlotStatus.NotReady;
+        }
         
         public object Clone()
         {
@@ -256,5 +284,14 @@ namespace Oldsu.Bancho.Multiplayer
             return match;
         }
 
+        public void ChangeTeam(uint requesterSlotId)
+        {
+            var slot = GetSlotByPlayerID(requesterSlotId);
+
+            if (Settings.TeamType == MatchTeamTypes.HeadToHead)
+                throw new InvalidTeamTypeException();
+            
+            slot.SlotTeam = slot.SlotTeam == SlotTeams.Blue ? SlotTeams.Red : SlotTeams.Blue;
+        }
     }
 }

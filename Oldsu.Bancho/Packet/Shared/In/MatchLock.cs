@@ -8,7 +8,10 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public uint SlotID { get; set; }
 
-        public Task Handle(UserContext userContext, Connection connection) =>
-            userContext.LobbyProvider.MatchLockSlot(userContext.UserID, SlotID);
+        public async Task Handle(UserContext userContext, Connection connection)
+        {
+            if ((await userContext.LobbyProvider.MatchLockSlot(userContext.UserID, SlotID)) is { } kickUser)
+                await userContext.UserRequestProvider.QuitMatch(kickUser);
+        }
     }
 }

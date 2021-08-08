@@ -7,6 +7,7 @@ using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Handshakes;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 using Oldsu.Utils;
 
@@ -43,7 +44,21 @@ namespace Oldsu.Bancho.Connections
         {
             _connection.SendPacket(packet);
         }
-        
+
+        public async void UserRequestInbound(UserRequestTypes request)
+        {
+            await _eventSemaphore.WaitAsync();
+
+            try
+            {
+                await _userContext.HandleUserRequest(request);
+            }
+            finally
+            {
+                _eventSemaphore.Release();
+            }
+        }
+
         public async void DisposeUserContext()
         {
             await _eventSemaphore.WaitAsync();
