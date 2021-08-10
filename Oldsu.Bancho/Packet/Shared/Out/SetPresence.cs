@@ -1,49 +1,27 @@
 ﻿using Oldsu.Bancho.Packet.Shared.In;
+using Oldsu.Bancho.User;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct SetPresence : ISharedPacketOut, Into<IB394APacketOut>, Into<IB904PacketOut>
+    public struct SetPresence : ISharedPacketOut, IntoPacket<IB904PacketOut>
     {
-        public User User { get; init; }
+        public UserInfo User { get; init; }
         public Presence Presence { get; init; }
-        public Stats? Stats { get; init; }
+        public StatsWithRank? Stats { get; init; }
         public Activity Activity { get; init; }
 
-        IB394APacketOut Into<IB394APacketOut>.Into()
-        {
-            Packet.Out.B394A.HandleOsuUpdateOnlineUser packet;
-
-            // todo add null check for stats
-            packet = new()
+        public static SetPresence FromUserData(UserData userData) =>
+            new SetPresence
             {
-                UserID = (int)User.UserID,
-                Username = User.Username,
-                AvatarFilename = "old.jpg",
-                Timezone = 0,
-                Location = "Poopoo",
-                RankedScore = (long)Stats!.RankedScore,
-                TotalScore = (long)Stats!.TotalScore,
-                Playcount = (int)Stats!.Playcount,
-                Accuracy = Stats!.Accuracy / 100f,
-                Rank = 0,
-                BStatusUpdate = new Packet.Out.B394A.bStatusUpdate
-                {
-                    bStatus = (byte)Activity.Action,
-                    BeatmapUpdate = Activity is ActivityWithBeatmap withBeatmap ?
-                        new Packet.Out.B394A.BeatmapUpdate
-                        {
-                            Map = withBeatmap.Map,
-                            MapMD5 = withBeatmap.MapMD5,
-                            Mods = withBeatmap.Mods,
-                        } : null
-                }
+                Activity = userData.Activity,
+                Presence = userData.Presence,
+                Stats = userData.Stats,
+                User = userData.UserInfo
             };
+        
 
-            return packet;
-        }
-
-        IB904PacketOut Into<IB904PacketOut>.Into()
+        IB904PacketOut IntoPacket<IB904PacketOut>.IntoPacket()
         {
             Packet.Out.B904.HandleOsuUpdateOnlineUser packet;
 

@@ -1,10 +1,10 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class HostSpectatorLeft : ISharedPacketOut, Into<IGenericPacketOut>
+    public struct HostSpectatorLeft : ISharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public int UserID { get; init; }
 
-        public IGenericPacketOut Into()
+        public IGenericPacketOut IntoPacket()
         {
             var packet = new Packet.Out.Generic.HostSpectatorLeft
             {

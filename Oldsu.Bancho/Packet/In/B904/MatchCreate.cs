@@ -4,19 +4,15 @@ using Oldsu.Enums;
 namespace Oldsu.Bancho.Packet.In.B904
 {
     [BanchoPacket(32, Version.B904, BanchoPacketType.In)]
-    public struct MatchCreate : Into<ISharedPacketIn>
+    public struct MatchCreate : IntoPacket<ISharedPacketIn>
     {
         [BanchoSerializable] public Match Match;
         
-        public ISharedPacketIn Into()
+        public ISharedPacketIn IntoPacket()
         {
             return new Shared.In.MatchCreate
             {
-                GamePassword = Match.GamePassword,
-                BeatmapChecksum = Match.BeatmapChecksum,
-                BeatmapName = Match.BeatmapName,
-                GameName = Match.GameName,
-                BeatmapID = Match.BeatmapID
+                MatchSettings = Match.ToMatchSettings()
             };
         }
     }

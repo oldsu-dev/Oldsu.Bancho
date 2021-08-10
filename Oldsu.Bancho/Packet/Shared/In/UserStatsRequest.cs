@@ -1,25 +1,20 @@
 ﻿using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class UserStatsRequest : ISharedPacketIn
     {
-        public async Task Handle(OnlineUser self)
+        public async Task Handle(UserContext userContext, Connection _)
         {
-            using var statsLock = await self.Stats.AcquireReadLockGuard();
-            using var activityLock = await self.Activity.AcquireReadLockGuard();
+            await using var database = new Database();
+            var stats = await database.GetStatsWithRankAsync(userContext.UserID, 0);
             
-            await self.Connection.SendPacketAsync(new BanchoPacket(
-                new StatusUpdate
-                {
-                    Stats = ~statsLock, Activity = ~activityLock, 
-                    Presence = self.Presence, User = self.UserInfo,
-                    Completeness = Completeness.Self
-                })
-            );
+            await userContext.UserStateProvider.SetStatsAsync(userContext.UserID, stats);
         }
     }
 }

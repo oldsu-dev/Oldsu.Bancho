@@ -1,7 +1,7 @@
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class Ping : ISharedPacketOut, Into<IGenericPacketOut>
+    public struct Ping : ISharedPacketOut, IntoPacket<IGenericPacketOut>
     {
-        public IGenericPacketOut Into() => new Packet.Out.Generic.Ping();
+        public IGenericPacketOut IntoPacket() => new Packet.Out.Generic.Ping();
     }
 }
