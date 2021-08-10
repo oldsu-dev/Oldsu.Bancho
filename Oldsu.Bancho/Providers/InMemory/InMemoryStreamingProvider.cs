@@ -18,7 +18,7 @@ namespace Oldsu.Bancho.Providers.InMemory
         {
             _streamerObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemoryStreamerObservable>>(new());
             _spectatorObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemorySpectatorObservable>>(new ());
-            _streamingPairs = new AsyncMutexWrapper<Dictionary<uint, uint>>();
+            _streamingPairs = new AsyncMutexWrapper<Dictionary<uint, uint>>(new());
         }
 
         public Task<IStreamerObservable?> GetStreamerObserver(uint userId) => 
@@ -71,7 +71,6 @@ namespace Oldsu.Bancho.Providers.InMemory
                 ProviderType = ProviderType.Streaming,
                 DataType = ProviderEventType.BanchoPacket,
             });
-            
         }
 
         public async Task NotifySpectatorLeft(uint spectatorUserId)

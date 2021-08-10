@@ -5,6 +5,6 @@ namespace Oldsu.Bancho.Handshakes
 {
     public interface IHandshake
     {
-        void Execute(AuthenticatedConnection authenticatedConnection);
+        Task Execute(AuthenticatedConnection authenticatedConnection);
     }
 }

@@ -15,7 +15,10 @@ namespace Oldsu.Bancho.Packet.Shared.In
             var result = await userContext.LobbyProvider.JoinMatch(userContext.UserID, MatchID, GamePassword);
 
             if (result is { } matchState)
+            {
                 await connection.SendPacketAsync(new BanchoPacket(new MatchJoinSuccess {MatchState = matchState}));
+                await connection.SendPacketAsync(new BanchoPacket(new ChannelAvailable() {ChannelName = "#multiplayer"}));
+            }
             else
                 await connection.SendPacketAsync(new BanchoPacket(new MatchJoinFail()));
         }

@@ -30,11 +30,14 @@ namespace Oldsu.Bancho
 {
     public class Server
     {
-        private const string BuildVersion = "Alpha 0.1";
-        
+        private const string ServerVersion = "Alpha 0.1";
+            
         private readonly WebSocketServer _server;
 
-        private AsyncRwLockWrapper<Dictionary<Guid, Connection>> _connections { get; }
+        private AsyncRwLockWrapper<Dictionary<Guid, Connection>> _connections;
+
+        private AsyncMutexWrapper<Dictionary<uint,
+            (AuthenticatedConnection Connection, UserContext Context)>> _authenticatedConnections;
 
         private async Task PingWatchdog(CancellationToken ct = default)
         {
@@ -68,21 +71,28 @@ namespace Oldsu.Bancho
             IUserStateProvider userDataProvider, 
             IStreamingProvider streamingProvider, 
             ILobbyProvider lobbyProvider,
-            IUserRequestProvider userRequestProvider)
+            IUserRequestProvider userRequestProvider,
+            IChatProvider chatProvider)
         {
             _server = new WebSocketServer(address);
             _connections = new AsyncRwLockWrapper<Dictionary<Guid, Connection>>(new());
+
+            _authenticatedConnections =
+                new AsyncMutexWrapper<Dictionary<uint, 
+                    (AuthenticatedConnection Connection, UserContext Context)>>(new());
 
             _userStateProvider = userDataProvider;
             _streamingProvider = streamingProvider;
             _lobbyProvider = lobbyProvider;
             _userRequestProvider = userRequestProvider;
+            _chatProvider = chatProvider;
         }
 
         private IUserStateProvider _userStateProvider;
         private IStreamingProvider _streamingProvider;
         private ILobbyProvider _lobbyProvider;
         private IUserRequestProvider _userRequestProvider;
+        private IChatProvider _chatProvider;
 
         private static Version GetProtocol(string clientBuild) => clientBuild switch
         {
@@ -91,7 +101,7 @@ namespace Oldsu.Bancho
         };
 
         private static readonly ConcurrentDictionary<string, GeoLoc> GeoLocCache = new();
-        private static readonly Reader IpLookupDatabase = new("GeoLite2-City.mmdb", FileAccessMode.Memory);
+        private static readonly Reader IpLookupDatabase = new("GeoLite2-City.mmdb", FileAccessMode.MemoryMapped);
 
         private static async Task<(float, float)> GetGeolocationAsync(string ip)
         {
@@ -168,28 +178,36 @@ namespace Oldsu.Bancho
             Debug.WriteLine($"{conn.ConnectionInfo.Host} disconnected. (${conn.GetType()}).");
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
 
-            conn.Dispose();
+            await conn.DisposeAsync();
+        }
+        
+        private async void HandleUserDisconnection(uint userId)
+        {
+            using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
+            
+            authenticatedConnectionsLock.Value.Remove(userId);
         }
 
         private async void HandleConnection(IWebSocketConnection webSocketConnection)
         {
-            
             var guid = Guid.NewGuid();
             var connection = new UnauthenticatedConnection(guid, webSocketConnection);
-            
+
             await _connections.WriteAsync(connections => connections.Add(guid, connection));
 
             connection.Disconnected += HandleDisconnection;
             connection.Login += HandleLogin;
         }
 
+
+
         private async void HandleLogin(object? sender, string authString)
         {
             UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
             connection.Login -= HandleLogin;
-            
+
             var (loginResult, userInfo, version) = await Authenticate(authString);
-            
+
             if (loginResult != LoginResult.AuthenticationSuccessful)
             {
                 await connection.SendPacketAsync(new BanchoPacket(new Login {LoginStatus = (int) loginResult}));
@@ -197,22 +215,36 @@ namespace Oldsu.Bancho
                 return;
             }
 
+            using (var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard())
+                if (authenticatedConnectionsLock.Value.TryGetValue(userInfo!.UserID, out var user))
+                {
+                    user.Connection.Disconnect();
+                    await user.Context.WaitDisconnection;
+                }
+
             await UpgradeConnection(connection, version, userInfo!);
         }
 
+        private static readonly BanchoPacket _signaturePacket = new BanchoPacket(new Signature
+        {
+            Version = ServerVersion,
+            ServerName = "Oldsu!"
+        });
+        
         private async Task UpgradeConnection(UnauthenticatedConnection connection, Version version, UserInfo userInfo)
         {
             using var connectionsLock = await _connections.AcquireWriteLockGuard();
-            
-            var userContext = new UserContext(userInfo.UserID, userInfo.Username,
-                _userStateProvider, _streamingProvider, _lobbyProvider, _userRequestProvider);
+            using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
+
+            var userContext = new UserContext(userInfo.UserID, userInfo.Username, userInfo.Privileges,
+                _userStateProvider, _streamingProvider, _lobbyProvider, _userRequestProvider, _chatProvider);
             
             var presence = await GetPresenceAsync(userInfo!,
                 connection.ConnectionInfo.Headers.TryGetValue("X-Forwaded-For", out var ip)
                     ? ip
                     : connection.ConnectionInfo.ClientIpAddress);
             
-            var upgradedConnection = connection.Upgrade(version);
+            var upgradedConnection = await connection.Upgrade(version);
 
             var handler = new ConnectionEventHandler(userContext, upgradedConnection);
 
@@ -225,15 +257,27 @@ namespace Oldsu.Bancho
 
             // Update connection object
             connectionsLock.Value[upgradedConnection.Guid] = upgradedConnection;
-            upgradedConnection.Disconnected += HandleDisconnection;
 
-            upgradedConnection.SendHandshake(
+            authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
+            authenticatedConnectionsLock.Value.Add(userInfo.UserID, (upgradedConnection, userContext));
+            
+            upgradedConnection.Disconnected += HandleDisconnection;
+            upgradedConnection.Disconnected += (_, _) => HandleUserDisconnection(userInfo.UserID);
+
+            await upgradedConnection.SendPacketAsync(_signaturePacket);
+
+            var autojoinChannels = await _chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
+            var availableChannels = await _chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
+            
+            await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
+            
+            await upgradedConnection.SendHandshake(
                 new CommonHandshake(
                     await _userStateProvider.GetAllUsersAsync(),
                     userInfo.UserID,
-                    presence.Privilege));
-
-            await userContext.InitialRegistration(userInfo, presence);
+                    presence.Privilege,
+                    autojoinChannels,
+                    availableChannels));
         }
 
         /// <summary>

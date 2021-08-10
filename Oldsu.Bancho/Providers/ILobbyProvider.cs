@@ -31,5 +31,10 @@ namespace Oldsu.Bancho.Providers
         Task MatchLoad(uint userId);
         Task<bool> MatchComplete(uint userId);
         Task MatchChangeTeam(uint userContextUserId);
+        Task SendMessageToMatch(uint userId, string username, string contents);
+        Task SendMessageToLobby(string username, string contents);
+        Task<bool> IsPlayerInMatch(uint userId);
+        Task<IChatChannel> GetMatchChatChannel(uint userId);
+        Task<IChatChannel> GetLobbyChatChannel();
     }
 }

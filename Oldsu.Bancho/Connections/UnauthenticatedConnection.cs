@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Fleck;
 
 using Version = Oldsu.Enums.Version;
@@ -27,9 +28,9 @@ namespace Oldsu.Bancho.Connections
         private void HandleMessage(string message) =>
             Login?.Invoke(this, message);
 
-        protected override void Dispose(bool disposing)
+        protected override async ValueTask DisposeAsync(bool disposing)
         {
-            base.Dispose(disposing);
+            await base.DisposeAsync(disposing);
 
             if (disposing)
             {
@@ -38,12 +39,12 @@ namespace Oldsu.Bancho.Connections
             }
         }
 
-        public AuthenticatedConnection Upgrade(Version version)
+        public async Task<AuthenticatedConnection> Upgrade(Version version)
         {
             var authenticatedConnection = new AuthenticatedConnection(Guid, RawConnection);
 
             authenticatedConnection.Version = version;
-            Dispose();
+            await DisposeAsync();
 
             return authenticatedConnection;
         }

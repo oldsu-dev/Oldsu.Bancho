@@ -88,7 +88,7 @@ namespace Oldsu.Bancho.Connections
             RawConnection.OnMessage += HandleMessage;
         }
 
-        public void SendHandshake(IHandshake handshake) => handshake.Execute(this);
+        public Task SendHandshake(IHandshake handshake) => handshake.Execute(this);
         
         private void HandleBinary(byte[] data)
         {
@@ -112,9 +112,9 @@ namespace Oldsu.Bancho.Connections
             Disconnect();
         }
 
-        protected override void Dispose(bool disposing)
+        protected override async ValueTask DisposeAsync(bool disposing)
         {
-            base.Dispose(disposing);
+            await base.DisposeAsync(disposing);
             
             if (disposing)
             {

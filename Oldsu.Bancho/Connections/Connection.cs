@@ -8,7 +8,7 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Connections
 {
-    public abstract class Connection : IDisposable
+    public abstract class Connection : IAsyncDisposable
     {
         protected IWebSocketConnection RawConnection { get; }
         public IWebSocketConnectionInfo ConnectionInfo => RawConnection.ConnectionInfo;
@@ -42,12 +42,7 @@ namespace Oldsu.Bancho.Connections
         private readonly SemaphoreSlim _sendPacketSemaphore;
         
         public void SendPacket(BanchoPacket packet) => Task.Run(() => SendPacketAsync(packet));
-
-        /// <summary>
-        ///     Sends packet to client.
-        /// </summary>
-        /// <param name="packet"> Packet meant to be sent. </param>
-
+        
         private readonly TaskCompletionSource _sendingCompletionSource;
 
         private void CheckCompletionState()
@@ -67,6 +62,9 @@ namespace Oldsu.Bancho.Connections
 
         public async Task SendPacketAsync(BanchoPacket packet)
         {
+            if (_sendingCompleted)
+                return;
+
             Interlocked.Increment(ref _waitingPackets);
             await _sendPacketSemaphore.WaitAsync();
 
@@ -117,19 +115,24 @@ namespace Oldsu.Bancho.Connections
         private void HandleDisconnection() =>
             Disconnected?.Invoke(this, EventArgs.Empty);
 
-        protected virtual void Dispose(bool disposing)
+        private bool _disposed = false;
+        
+        public async ValueTask DisposeAsync()
+        {            
+            await DisposeAsync(!_disposed); 
+            GC.SuppressFinalize(this);
+        }
+        
+        protected virtual async ValueTask DisposeAsync(bool disposing)
         {
             if (disposing)
             {
+                await _sendPacketSemaphore.WaitAsync();
                 _sendPacketSemaphore.Dispose();
                 RawConnection.OnClose -= HandleDisconnection;
-            }
-        }
 
-        public void Dispose()
-        {
-            Dispose(true); 
-            GC.SuppressFinalize(this);
+                _disposed = true;
+            }
         }
     }
 }

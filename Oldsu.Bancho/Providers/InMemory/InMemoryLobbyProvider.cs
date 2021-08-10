@@ -7,7 +7,10 @@ using Oldsu.Bancho.Exceptions.Lobby;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Out.B904;
+using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Enums;
 using Oldsu.Multiplayer.Enums;
+using Oldsu.Types;
 using Oldsu.Utils.Threading;
 using MatchDisband = Oldsu.Bancho.Packet.Shared.Out.MatchDisband;
 using MatchUpdate = Oldsu.Bancho.Packet.Shared.Out.MatchUpdate;
@@ -21,9 +24,12 @@ namespace Oldsu.Bancho.Providers.InMemory
     
     public class InMemoryLobbyProvider : InMemoryObservable<ProviderEvent>, ILobbyProvider
     {
+        private InMemoryChannel _lobbyChatChannel;
+        
         private const int MatchesAvailable = 256;
 
         private readonly AsyncRwLockWrapper<MatchState?[]> _matches;
+        private readonly AsyncRwLockWrapper<InMemoryChannel?[]> _matchChatChannels;
         private readonly AsyncRwLockWrapper<InMemoryMatchSetupObservable?[]> _matchSetupObservables;
         private readonly AsyncRwLockWrapper<InMemoryMatchGameObservable?[]> _matchGameObservables;
         private readonly AsyncRwLockWrapper<Dictionary<uint, JoinedPlayerData>> _joinedPlayers;
@@ -38,6 +44,17 @@ namespace Oldsu.Bancho.Providers.InMemory
             
             _matchGameObservables =
                 new AsyncRwLockWrapper<InMemoryMatchGameObservable?[]>(new InMemoryMatchGameObservable[MatchesAvailable]);
+
+            _matchChatChannels = new AsyncRwLockWrapper<InMemoryChannel?[]>(new InMemoryChannel[MatchesAvailable]);
+
+            _lobbyChatChannel = new InMemoryChannel(new Channel
+            {
+                Tag = "#lobby",
+                Topic = "Discussion about multiplayer matches.",
+                AutoJoin = false,
+                CanWrite = true,
+                RequiredPrivileges = Privileges.Normal
+            });
         }
 
         class JoinedPlayerData
@@ -57,7 +74,7 @@ namespace Oldsu.Bancho.Providers.InMemory
             public bool CanSkip { get; set; }
             public bool CanLoad { get; set; }
         }
-
+        
         private async Task NotifyMatchUpdate(MatchState data)
         {
             // Hide original password before notify.
@@ -191,6 +208,9 @@ namespace Oldsu.Bancho.Providers.InMemory
             if (!joinedPlayers.Value.TryGetValue(userId, out var playerData))
                 return null;
 
+            if (playerData.Playing)
+                throw new UserPlayingException();
+
             return observablesLock.Value[playerData.MatchID];
         }
         
@@ -234,7 +254,17 @@ namespace Oldsu.Bancho.Providers.InMemory
 
                     await _matchSetupObservables.WriteAsync(observables =>
                         observables[matchId] = new InMemoryMatchSetupObservable());
-
+                    
+                    await _matchChatChannels.WriteAsync(channels =>
+                        channels[matchId] = new InMemoryChannel(new Channel
+                        {
+                            Tag = "#multiplayer",
+                            Topic = "Multiplayer room discussion.",
+                            AutoJoin = true,
+                            CanWrite = true,
+                            RequiredPrivileges = Privileges.Normal
+                        }));
+                    
                     match = (match.Clone() as MatchState)!;
                     
                     goto MatchCreated;
@@ -311,6 +341,8 @@ namespace Oldsu.Bancho.Providers.InMemory
                     if (disbandMatch)
                     {
                         matchesLock.Value[playerData.MatchID] = null;
+                        
+                        await _matchChatChannels.WriteAsync(channels => channels[playerData.MatchID] = null);
                         await _matchSetupObservables.WriteAsync(observables => observables[playerData.MatchID] = null);
                         await _matchGameObservables.WriteAsync(observables => observables[playerData.MatchID] = null);
                             
@@ -450,7 +482,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                     {
                         match = (match.Clone() as MatchState)!;
                         goto DoNotify;
-                    }
+                    }   
                     
                     goto DontNotify;
                 }
@@ -639,5 +671,39 @@ namespace Oldsu.Bancho.Providers.InMemory
             return false;
         }
 
+        public async Task SendMessageToMatch(uint userId, string username, string contents)
+        {
+            using var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard();
+            
+            if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                throw new UserNotInMatchException();
+
+            await _matchChatChannels.ReadAsync(channels => 
+                channels[playerData.MatchID]!.SendMessage(username, contents));
+        }
+
+        public Task SendMessageToLobby(string username, string contents) =>
+            _lobbyChatChannel.SendMessage(username, contents);
+
+        
+        public async Task<bool> IsPlayerInMatch(uint userId)
+        {
+            using var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard();
+
+            return joinedPlayersLock.Value.ContainsKey(userId);
+        }
+
+        public async Task<IChatChannel> GetMatchChatChannel(uint userId)
+        {
+            using var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard();
+            
+            if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
+                throw new UserNotInMatchException();
+            
+            return await _matchChatChannels.ReadAsync(channels => channels[playerData.MatchID]!);
+        }
+
+        public Task<IChatChannel> GetLobbyChatChannel() => Task.FromResult<IChatChannel>(_lobbyChatChannel);
+        
     }
 }

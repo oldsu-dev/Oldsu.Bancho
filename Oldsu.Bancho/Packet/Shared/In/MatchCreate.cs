@@ -17,7 +17,10 @@ namespace Oldsu.Bancho.Packet.Shared.In
             if (match is null)
                 await connection.SendPacketAsync(new BanchoPacket(new MatchJoinFail()));
             else
+            {
                 await connection.SendPacketAsync(new BanchoPacket(new MatchJoinSuccess {MatchState = match}));
+                await connection.SendPacketAsync(new BanchoPacket(new ChannelAvailable() {ChannelName = "#multiplayer"}));
+            }
         }
     }
 }

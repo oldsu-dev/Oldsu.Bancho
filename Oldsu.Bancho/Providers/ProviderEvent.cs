@@ -5,7 +5,9 @@ namespace Oldsu.Bancho.Providers
         UserState,
         Streaming,
         Lobby,
-        UserRequest
+        UserRequest,
+        Chat,
+        ClientContext
     }
     
     public enum ProviderEventType
