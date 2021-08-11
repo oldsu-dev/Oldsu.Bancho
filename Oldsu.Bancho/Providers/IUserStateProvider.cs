@@ -10,8 +10,6 @@ using Oldsu.Utils;
 
 namespace Oldsu.Bancho.Providers
 {
-
-    
     public interface IUserStateProvider : IAsyncObservable<ProviderEvent>
     {
         Task RegisterUserAsync(uint userId, UserData data);
