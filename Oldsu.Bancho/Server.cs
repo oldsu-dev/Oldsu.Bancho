@@ -268,9 +268,18 @@ namespace Oldsu.Bancho
 
             var autojoinChannels = await _chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
             var availableChannels = await _chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
-            
+
+            await using var database = new Database();
+
             await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
-            
+
+            var friendsList = await database.Friends.Where(friendship => friendship.User.UserID == userInfo.UserID).ToListAsync();
+
+            BanchoFriendsList list = new() {
+                Friendships = friendsList
+            };
+
+
             await upgradedConnection.SendHandshake(
                 new CommonHandshake(
                     await _userStateProvider.GetAllUsersAsync(),

@@ -15,14 +15,13 @@ var userRequestProvider = new InMemoryUserRequestProvider();
 
 IChatProvider chatProvider = new InMemoryChatProvider();
 
-await using (var database = new Database())
-{
+await using (var database = new Database()) {
     await foreach (var channel in database.AvailableChannels.AsAsyncEnumerable())
         await chatProvider.RegisterChannel(channel);
 }
 
 // Future usage from cli: oldsu ws://127.0.0.1/ or something like that
-var server = new Server("ws://0.0.0.0:8080/", 
+var server = new Server("ws://127.0.0.1:13381/",
     userDataProvider, streamingProvider, lobbyProvider, userRequestProvider, chatProvider);
 
 await server.Run();
