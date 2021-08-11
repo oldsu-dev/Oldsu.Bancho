@@ -273,12 +273,11 @@ namespace Oldsu.Bancho
 
             await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
 
-            var friendsList = await database.Friends.Where(friendship => friendship.User.UserID == userInfo.UserID).ToListAsync();
+            var friendsList = await database.Friends.Where(friendship => friendship.UserID == userInfo.UserID).ToListAsync();
 
             BanchoFriendsList list = new() {
                 Friendships = friendsList
             };
-
 
             await upgradedConnection.SendHandshake(
                 new CommonHandshake(
@@ -286,7 +285,9 @@ namespace Oldsu.Bancho
                     userInfo.UserID,
                     presence.Privilege,
                     autojoinChannels,
-                    availableChannels));
+                    availableChannels,
+                    list
+                ));
         }
 
         /// <summary>

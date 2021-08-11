@@ -525,6 +525,9 @@ namespace Oldsu.Bancho
         private static TypeMember GetTypeMember(Type memberType, 
             MemberInfo memberInfo, BanchoSerializableAttribute attrib)
         {
+            if (memberType.IsGenericType && memberType.GetGenericTypeDefinition() == typeof(List<>))
+                return new ListMember(memberInfo, attrib);
+
             return memberType.ToString() switch
             {
                 "System.Byte" => new ByteMember(memberInfo, attrib),
@@ -538,7 +541,6 @@ namespace Oldsu.Bancho
                 "System.Single" => new FloatMember(memberInfo, attrib),
                 "System.String" => new StringMember(memberInfo, attrib),
                 "System.Boolean" => new BoolMember(memberInfo, attrib),
-                "System.Collections.Generic.List" => new ListMember(memberInfo, attrib),
 
                 _ => new ObjectMember(memberInfo, attrib)
             };
