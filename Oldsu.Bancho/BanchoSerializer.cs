@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Version = Oldsu.Enums.Version;
 
@@ -55,9 +56,14 @@ namespace Oldsu.Bancho
         public bool Optional { get; }
         
         public int ArrayElementCount { get; }
+
+        public int Index { get; }
         
-        public BanchoSerializableAttribute(bool optional = false, int arrayElementCount = 0)
+        public BanchoSerializableAttribute(
+            [CallerLineNumber] int index = 0,
+            bool optional = false, int arrayElementCount = 0)
         {
+            Index = index;
             Optional = optional;
             ArrayElementCount = arrayElementCount;
         }
@@ -551,6 +557,7 @@ namespace Oldsu.Bancho
             var members = GetAllMemberInfo(type)
                 .Where(memberInfo => memberInfo.GetCustomAttribute<BanchoSerializableAttribute>() != null &&
                                      memberInfo.MemberType != MemberTypes.TypeInfo)
+                .OrderBy(memberInfo => memberInfo.GetCustomAttribute<BanchoSerializableAttribute>()!.Index)
                 .Select(memberInfo =>
                 {
                     var attrib = memberInfo.GetCustomAttribute<BanchoSerializableAttribute>()!;
