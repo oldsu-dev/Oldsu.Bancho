@@ -199,8 +199,6 @@ namespace Oldsu.Bancho
             connection.Login += HandleLogin;
         }
 
-
-
         private async void HandleLogin(object? sender, string authString)
         {
             UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
