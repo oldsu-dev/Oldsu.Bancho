@@ -267,8 +267,6 @@ namespace Oldsu.Bancho
             var autojoinChannels = await _chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
             var availableChannels = await _chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
             
-            await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
-            
             await upgradedConnection.SendHandshake(
                 new CommonHandshake(
                     await _userStateProvider.GetAllUsersAsync(),
@@ -276,6 +274,8 @@ namespace Oldsu.Bancho
                     presence.Privilege,
                     autojoinChannels,
                     availableChannels));
+            
+            await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
         }
 
         /// <summary>

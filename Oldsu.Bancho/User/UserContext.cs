@@ -10,6 +10,7 @@ using Oldsu.Enums;
 using Oldsu.Types;
 using Oldsu.Utils;
 using Action = Oldsu.Enums.Action;
+using ChannelLeft = Oldsu.Bancho.Packet.Shared.Out.ChannelLeft;
 
 namespace Oldsu.Bancho.User
 {
@@ -222,14 +223,7 @@ namespace Oldsu.Bancho.User
                 case UserRequestTypes.QuitMatch:
                     await LobbyProvider.TryLeaveMatch(UserID);
 
-                    await SubscriptionManager.UnsubscribeFromChannel("#multiplayer");
-
-                    await SubscriptionManager.OnNext(this, new ProviderEvent
-                    {
-                        ProviderType = ProviderType.ClientContext,
-                        Data = new BanchoPacket(new ChannelLeft {ChannelName = "#multiplayer"}),
-                        DataType = ProviderEventType.BanchoPacket
-                    });
+                    await LeaveChannel("#multiplayer");
 
                     if (!SubscriptionManager.SubscribedToLobby)
                         await SubscriptionManager.UnsubscribeFromMatchUpdates();
@@ -245,6 +239,42 @@ namespace Oldsu.Bancho.User
                     throw new ArgumentOutOfRangeException(nameof(request), request, null);
             }
         }
+        
+        public async Task LeaveChannel(string tag)
+        {
+            await SubscriptionManager.UnsubscribeFromChannel(tag);
+            
+            await SubscriptionManager.OnNext(this, new ProviderEvent
+            {
+                DataType = ProviderEventType.BanchoPacket,
+                Data = new BanchoPacket(new ChannelLeft() {ChannelName = tag}),
+                ProviderType = ProviderType.ClientContext
+            });
+        }
+
+        public async Task LeaveChannel(IChatChannel channel)
+        {
+            await SubscriptionManager.UnsubscribeFromChannel(channel);
+            
+            await SubscriptionManager.OnNext(this, new ProviderEvent
+            {
+                DataType = ProviderEventType.BanchoPacket,
+                Data = new BanchoPacket(new ChannelLeft() {ChannelName = channel.ChannelInfo.Tag}),
+                ProviderType = ProviderType.ClientContext
+            });
+        }
+        
+        public async Task JoinChannel(IChatChannel channel)
+        {
+            await SubscriptionManager.SubscribeToChannel(channel);
+            
+            await SubscriptionManager.OnNext(this, new ProviderEvent
+            {
+                DataType = ProviderEventType.BanchoPacket,
+                Data = new BanchoPacket(new ChannelJoined() {ChannelName = channel.ChannelInfo.Tag}),
+                ProviderType = ProviderType.ClientContext
+            });
+        }
 
         public async Task InitialRegistration(UserInfo userInfo, Presence presence, Channel[] autojoinChannels)
         {
@@ -256,15 +286,6 @@ namespace Oldsu.Bancho.User
 
             await SubscriptionManager.SubscribeToChat(ChatProvider);
             await ChatProvider.RegisterUser(Username);
-            
-            await SubscriptionManager.SubscribeToChannel(
-                (await ChatProvider.GetUserChannel(Username))!);
-
-            foreach (var channel in autojoinChannels)
-            {
-                await SubscriptionManager.SubscribeToChannel(
-                    (await ChatProvider.GetChannel(channel.Tag, Privileges))!);
-            }
 
             await using Database database = new Database();
             
@@ -281,6 +302,12 @@ namespace Oldsu.Bancho.User
             
             await SubscriptionManager.SubscribeToUserRequests(
                 (await UserRequestProvider.GetObservable(UserID))!);
+            
+            await SubscriptionManager.SubscribeToChannel(
+                (await ChatProvider.GetUserChannel(Username))!);
+
+            foreach (var channel in autojoinChannels)
+                await JoinChannel((await ChatProvider.GetChannel(channel.Tag, Privileges))!);
         }
         
 
