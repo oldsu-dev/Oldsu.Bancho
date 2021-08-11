@@ -15,12 +15,10 @@ namespace Oldsu.Bancho.Providers.InMemory
 {
     public class InMemoryUserStateProvider : InMemoryObservable<ProviderEvent>, IUserStateProvider
     {
-        private readonly AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>> _observers;
         private readonly AsyncRwLockWrapper<Dictionary<uint, UserData>> _wrapper;
 
         public InMemoryUserStateProvider()
         {
-            _observers = new AsyncRwLockWrapper<List<IAsyncObserver<BanchoPacket>>>(new ());
             _wrapper = new AsyncRwLockWrapper<Dictionary<uint, UserData>>(new ());
         }
 
