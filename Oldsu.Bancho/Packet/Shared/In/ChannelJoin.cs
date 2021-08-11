@@ -31,13 +31,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                 default:
                     var channel = await userContext.ChatProvider.GetChannel(ChannelName, userContext.Privileges);
                     if (channel is not null)
-                    {
-                        await userContext.SubscriptionManager.SubscribeToChannel(channel);
-                        await connection.SendPacketAsync(new BanchoPacket(new ChannelJoined()
-                        {
-                            ChannelName = channel.ChannelInfo.Tag
-                        }));
-                    }
+                        await userContext.JoinChannel(channel);
                     break;
             }
         }
