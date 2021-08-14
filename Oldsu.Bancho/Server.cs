@@ -22,6 +22,7 @@ using Oldsu.Bancho.User;
 using Oldsu.Enums;
 using Oldsu.Types;
 using Oldsu.Utils;
+using Oldsu.Utils.Location;
 using Oldsu.Utils.Threading;
 using Action = Oldsu.Enums.Action;
 using Version = Oldsu.Enums.Version;
@@ -100,35 +101,6 @@ namespace Oldsu.Bancho
             _ => Version.NotApplicable,
         };
 
-        private static readonly ConcurrentDictionary<string, GeoLoc> GeoLocCache = new();
-        private static readonly Reader IpLookupDatabase = new("GeoLite2-City.mmdb", FileAccessMode.MemoryMapped);
-
-        private static async Task<(float, float)> GetGeolocationAsync(string ip)
-        {
-            if (ip == "127.0.0.1")
-                return (0, 0);
-            
-            var data = IpLookupDatabase.Find<Dictionary<string, object>>(IPAddress.Parse(ip));
-            
-            if (data != null)
-            {
-                var location = (Dictionary<string, object>)data["location"];
-                return ((float)location["latitude"], (float)location["longitude"]);
-            }
-
-            if (GeoLocCache.TryGetValue(ip, out var geoLoc))
-                return (geoLoc.Lat, geoLoc.Lon);
-
-            using (var httpClient = new HttpClient())
-            {
-                var json = await httpClient.GetAsync($"http://ip-api.com/json/{ip}");
-                geoLoc = JsonConvert.DeserializeObject<GeoLoc>(await json.Content.ReadAsStringAsync());
-            }
-
-            GeoLocCache.TryAdd(ip, geoLoc!);
-            return (geoLoc!.Lat, geoLoc!.Lon);
-        }
-        
         private async Task<(LoginResult, UserInfo?, Version)> Authenticate(string authString)
         {
             var authFields = authString.Split().Select(s => s.Trim()).ToArray();
@@ -159,7 +131,7 @@ namespace Oldsu.Bancho
 
         private async Task<Presence> GetPresenceAsync(UserInfo user, string ip)
         {
-            var (locationX, locationY) = await GetGeolocationAsync(ip);
+            var (locationX, locationY) = await Geolocation.GetGeolocationAsync(ip);
 
             return new Presence
             {
