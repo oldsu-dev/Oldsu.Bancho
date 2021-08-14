@@ -28,23 +28,20 @@ namespace Oldsu.Bancho.Connections
         private void HandleMessage(string message) =>
             Login?.Invoke(this, message);
 
-        protected override async ValueTask DisposeAsync(bool disposing)
+        protected override void ClearEventSubscriptions()
         {
-            await base.DisposeAsync(disposing);
-
-            if (disposing)
-            {
-                RawConnection.OnBinary -= HandleBinary;
-                RawConnection.OnMessage -= HandleMessage;
-            }
+            base.ClearEventSubscriptions();
+            
+            RawConnection.OnBinary -= HandleBinary;
+            RawConnection.OnMessage -= HandleMessage;
         }
 
         public async Task<AuthenticatedConnection> Upgrade(Version version)
         {
-            var authenticatedConnection = new AuthenticatedConnection(Guid, RawConnection);
+            ClearEventSubscriptions();
 
+            var authenticatedConnection = new AuthenticatedConnection(Guid, RawConnection);
             authenticatedConnection.Version = version;
-            await DisposeAsync();
 
             return authenticatedConnection;
         }

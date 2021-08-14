@@ -175,10 +175,8 @@ namespace Oldsu.Bancho
         {
             var conn = (Connection) sender!;
             
-            Debug.WriteLine($"{conn.ConnectionInfo.Host} disconnected. (${conn.GetType()}).");
+            Debug.WriteLine($"{conn.ConnectionInfo.ClientIpAddress} disconnected. (${conn.GetType()}).");
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
-
-            await conn.DisposeAsync();
         }
         
         private async void HandleUserDisconnection(uint userId)
@@ -228,7 +226,7 @@ namespace Oldsu.Bancho
             Version = ServerVersion,
             ServerName = "Oldsu!"
         });
-        
+
         private async Task UpgradeConnection(UnauthenticatedConnection connection, Version version, UserInfo userInfo)
         {
             using var connectionsLock = await _connections.AcquireWriteLockGuard();
@@ -244,38 +242,38 @@ namespace Oldsu.Bancho
             
             var upgradedConnection = await connection.Upgrade(version);
 
+            connectionsLock.Value[upgradedConnection.Guid] = upgradedConnection;
+            
             var handler = new ConnectionEventHandler(userContext, upgradedConnection);
 
+            // Bind connection events
             userContext.SubscriptionManager.PacketInbound += (_, packet) => handler.PacketInbound(packet);
-            userContext.SubscriptionManager.EventInbound += (_, packet) => 
-                handler.UserRequestInbound((UserRequestTypes)packet.Data!);
+            userContext.SubscriptionManager.EventInbound += (_, packet) => handler.UserRequestInbound((UserRequestTypes)packet.Data!);
             
             upgradedConnection.PacketReceived += (_, packet) => handler.ProcessPacket(packet);
-            upgradedConnection.Disconnected += (_, _) => handler.DisposeUserContext();
-
-            // Update connection object
-            connectionsLock.Value[upgradedConnection.Guid] = upgradedConnection;
-
-            authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
-            authenticatedConnectionsLock.Value.Add(userInfo.UserID, (upgradedConnection, userContext));
             
+            upgradedConnection.Disconnected += (_, _) => handler.DisposeUserContext();
             upgradedConnection.Disconnected += HandleDisconnection;
             upgradedConnection.Disconnected += (_, _) => HandleUserDisconnection(userInfo.UserID);
+            
+            // Update connection object
+            authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
+            authenticatedConnectionsLock.Value.Add(userInfo.UserID, (upgradedConnection, userContext));
 
             await upgradedConnection.SendPacketAsync(_signaturePacket);
 
             var autojoinChannels = await _chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
             var availableChannels = await _chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
 
-            await using var database = new Database();
-
             await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
 
-            var friendsList = await database.Friends.Where(friendship => friendship.UserID == userInfo.UserID).ToListAsync();
-
-            BanchoFriendsList list = new() {
-                Friendships = friendsList
-            };
+            List<Friendship> friendships;
+            await using (var database = new Database()) 
+            {
+                friendships = await database.Friends
+                    .Where(friendship => friendship.UserID == userInfo.UserID)
+                    .ToListAsync();
+            }
 
             await upgradedConnection.SendHandshake(
                 new CommonHandshake(
@@ -284,7 +282,7 @@ namespace Oldsu.Bancho
                     presence.Privilege,
                     autojoinChannels,
                     availableChannels,
-                    list
+                    friendships
                 ));
         }
 

@@ -8,7 +8,7 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Connections
 {
-    public abstract class Connection : IAsyncDisposable
+    public abstract class Connection
     {
         protected IWebSocketConnection RawConnection { get; }
         public IWebSocketConnectionInfo ConnectionInfo => RawConnection.ConnectionInfo;
@@ -108,31 +108,20 @@ namespace Oldsu.Bancho.Connections
             CompleteSending();
             await _sendingCompletionSource.Task;
             RawConnection.Close();
+            
         }
 
         public void ForceDisconnect() => HandleDisconnection();
 
-        private void HandleDisconnection() =>
-            Disconnected?.Invoke(this, EventArgs.Empty);
-
-        private bool _disposed = false;
-        
-        public async ValueTask DisposeAsync()
-        {            
-            await DisposeAsync(!_disposed); 
-            GC.SuppressFinalize(this);
-        }
-        
-        protected virtual async ValueTask DisposeAsync(bool disposing)
+        private void HandleDisconnection()
         {
-            if (disposing)
-            {
-                await _sendPacketSemaphore.WaitAsync();
-                _sendPacketSemaphore.Dispose();
-                RawConnection.OnClose -= HandleDisconnection;
+            Disconnected?.Invoke(this, EventArgs.Empty);
+            ClearEventSubscriptions();
+        }
 
-                _disposed = true;
-            }
+        protected virtual void ClearEventSubscriptions()
+        {
+            RawConnection.OnClose -= HandleDisconnection;
         }
     }
 }

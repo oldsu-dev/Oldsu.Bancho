@@ -112,15 +112,12 @@ namespace Oldsu.Bancho.Connections
             Disconnect();
         }
 
-        protected override async ValueTask DisposeAsync(bool disposing)
+        protected override void ClearEventSubscriptions()
         {
-            await base.DisposeAsync(disposing);
+            base.ClearEventSubscriptions();
             
-            if (disposing)
-            {
-                RawConnection.OnBinary -= HandleBinary;
-                RawConnection.OnMessage -= HandleMessage;
-            }
+            RawConnection.OnBinary -= HandleBinary;
+            RawConnection.OnMessage -= HandleMessage;
         }
     }
 }
