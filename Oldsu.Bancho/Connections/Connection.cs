@@ -24,7 +24,7 @@ namespace Oldsu.Bancho.Connections
         public Version Version { get;  set; } 
         public Guid Guid { get; }
 
-        public string IP => ConnectionInfo.Headers.TryGetValue("x-forwarded-for", out var ip)
+        public string IP => ConnectionInfo.Headers.TryGetValue("X-Real-IP", out var ip)
             ? ip
             : ConnectionInfo.ClientIpAddress;
 
