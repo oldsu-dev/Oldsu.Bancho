@@ -170,6 +170,8 @@ namespace Oldsu.Bancho
         {
             var guid = Guid.NewGuid();
             var connection = new UnauthenticatedConnection(guid, webSocketConnection);
+            
+            Console.WriteLine($"{connection.IP} trying to connect.");
 
             await _connections.WriteAsync(connections => connections.Add(guid, connection));
 
@@ -180,10 +182,10 @@ namespace Oldsu.Bancho
         private async void HandleLogin(object? sender, string authString)
         {
             UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
+
             connection.Login -= HandleLogin;
 
             var (loginResult, userInfo, version, utcOffset, showCity) = await Authenticate(authString);
-            var presence = await GetPresenceAsync(userInfo!, utcOffset, showCity, connection.IP);
 
             if (loginResult != LoginResult.AuthenticationSuccessful)
             {
@@ -191,6 +193,8 @@ namespace Oldsu.Bancho
                 connection.Disconnect();
                 return;
             }
+            
+            var presence = await GetPresenceAsync(userInfo!, utcOffset, showCity, connection.IP);
 
             using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
             if (authenticatedConnectionsLock.Value.TryGetValue(userInfo!.UserID, out var user))
