@@ -395,7 +395,23 @@ namespace Oldsu.Bancho.Providers.InMemory
             
             DontNotify: ;
         }
-        
+
+        public async Task<uint> MatchTransferHost(uint userId, uint newHostSlot)
+        {
+            uint newHostID = 0;
+            
+            await ExecuteOperationOnCurrentMatch(userId,
+                match =>
+                {
+                    match.TransferHost(userId, newHostSlot);
+                    newHostID = (uint)match.HostID;
+                    
+                    return true;
+                });
+
+            return newHostID;
+        }
+
         public Task MatchSetReady(uint userId) => 
             ExecuteOperationOnCurrentMatch(userId, 
                 match =>
@@ -704,6 +720,5 @@ namespace Oldsu.Bancho.Providers.InMemory
         }
 
         public Task<IChatChannel> GetLobbyChatChannel() => Task.FromResult<IChatChannel>(_lobbyChatChannel);
-        
     }
 }

@@ -6,7 +6,8 @@ namespace Oldsu.Bancho.Providers
     public enum UserRequestTypes
     {
         QuitMatch,
-        SubscribeToMatchSetup
+        SubscribeToMatchSetup,
+        AnnounceTransferHost
     }
     
     public interface IUserRequestObservable : IAsyncObservable<ProviderEvent> 
@@ -17,6 +18,7 @@ namespace Oldsu.Bancho.Providers
         Task RegisterUser(uint userId);
         Task UnregisterUser(uint userId);
         Task QuitMatch(uint userId);
+        Task AnnounceTransferHost(uint userId);
         Task<IUserRequestObservable> GetObservable(uint userId);
     }
 }

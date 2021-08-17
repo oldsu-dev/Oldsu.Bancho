@@ -45,6 +45,21 @@ namespace Oldsu.Bancho.Providers.InMemory
             });
         }
 
+        public async Task AnnounceTransferHost(uint userId)
+        {
+            using var observableLock = await _observables.AcquireReadLockGuard();
+
+            if (!observableLock.Value.TryGetValue(userId, out var observable))
+                throw new UserNotFoundException();
+
+            await observable.Notify(new ProviderEvent
+            {
+                Data = UserRequestTypes.AnnounceTransferHost,
+                DataType = ProviderEventType.UserRequest,
+                ProviderType = ProviderType.UserRequest
+            });
+        }
+
         public async Task<IUserRequestObservable> GetObservable(uint userId)
         {
             using var observableLock = await _observables.AcquireReadLockGuard();

@@ -229,7 +229,16 @@ namespace Oldsu.Bancho.User
                         await SubscriptionManager.UnsubscribeFromMatchUpdates();
 
                     break;
-                
+                case UserRequestTypes.AnnounceTransferHost:
+                    await SubscriptionManager.OnNext(this, new ProviderEvent
+                    {
+                        DataType = ProviderEventType.BanchoPacket,
+                        Data = new BanchoPacket(new MatchTransferHost()),
+                        ProviderType = ProviderType.ClientContext
+                    });
+                    
+                    break;
+                    
                 case UserRequestTypes.SubscribeToMatchSetup:
                     await SubscriptionManager.SubscribeToMatchSetupUpdates(
                         (await LobbyProvider.GetMatchSetupObservable(UserID))!);

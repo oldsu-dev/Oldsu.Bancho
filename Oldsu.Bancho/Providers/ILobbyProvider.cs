@@ -14,6 +14,7 @@ namespace Oldsu.Bancho.Providers
         Task MatchNoBeatmap(uint userId);
         Task MatchGotBeatmap(uint userId);
         Task MatchSetUnready(uint userId);
+        Task<uint> MatchTransferHost(uint userId, uint newHostSlot);
         Task MatchSetReady(uint userId);
         Task MatchChangeSettings(uint userId, MatchSettings matchSettings);
         Task MatchChangeMods(uint userId, short mods);

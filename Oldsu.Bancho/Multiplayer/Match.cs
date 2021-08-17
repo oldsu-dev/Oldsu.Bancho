@@ -41,7 +41,7 @@ namespace Oldsu.Bancho.Multiplayer
         public int MatchID { get; set; }
         public int HostID { get; set; }
         
-        public HashSet<Version> AllowedVersions { get; }  // <- WTF
+        public HashSet<Version> AllowedVersions { get; }
 
         public bool InProgress { get; set; }
 
@@ -175,31 +175,34 @@ namespace Oldsu.Bancho.Multiplayer
             
             slot.Reset();
 
-            var newHost = Array.FindIndex(MatchSlots, s => s.UserID != -1);
-            if (newHost == -1)
+            if (requesterUserId == HostID)
             {
-                disbandRequested = true;
-                return;
-            }
+                var newHost = Array.FindIndex(MatchSlots, s => s.UserID != -1);
+                if (newHost == -1)
+                {
+                    disbandRequested = true;
+                    return;
+                }
 
-            if (InProgress && GetPlayingUsersIDs().Length == 0)
-            {
-                Reset();
+                if (InProgress && GetPlayingUsersIDs().Length == 0)
+                {
+                    Reset();
+                }
+                
+                HostID = MatchSlots[newHost].UserID;
             }
-            
-            HostID = MatchSlots[newHost].UserID;
         }
 
         public void NoBeatmap(uint requesterUserId)
         {
             var slot = GetSlotByPlayerID(requesterUserId);
-            slot.SlotStatus |= SlotStatus.NoMap;
+            slot.SlotStatus = SlotStatus.NoMap;
         }
         
         public void GotBeatmap(uint requesterUserId)
         {
             var slot = GetSlotByPlayerID(requesterUserId);
-            slot.SlotStatus &= ~SlotStatus.NoMap;
+            slot.SlotStatus = SlotStatus.NotReady;
         }
         
         public void ChangeMods(uint requesterUserId, short mods)
@@ -213,11 +216,11 @@ namespace Oldsu.Bancho.Multiplayer
             CheckHost(requesterUserId);
             kick = null;
             
-            if (GetSlotIndexByPlayerID(requesterUserId) == lockedSlot)
-                return false;
-
             if (lockedSlot >= 8)
                 throw new InvalidSlotIDException();
+            
+            if (GetSlotIndexByPlayerID(requesterUserId) == lockedSlot)
+                return false;
 
             var slot = MatchSlots[lockedSlot];
 
@@ -227,6 +230,17 @@ namespace Oldsu.Bancho.Multiplayer
             slot.ToggleLock();
 
             return true;
+        }
+        
+        public void TransferHost(uint requesterUserId, uint newHostSlot)
+        {
+            CheckHost(requesterUserId);
+            
+            if (newHostSlot >= 8)
+                throw new InvalidSlotIDException();
+            
+            var slot = MatchSlots[newHostSlot];
+            HostID = slot.UserID;
         }
 
         public void Skip(uint requesterUserId)
@@ -263,13 +277,12 @@ namespace Oldsu.Bancho.Multiplayer
             slot.Loaded = true;
         }
         
-        
         public void Ready(uint requesterUserId)
         {
             var slot = GetSlotByPlayerID(requesterUserId);
             slot.SlotStatus = SlotStatus.Ready;
         }
-        
+
         public void Unready(uint requesterSlotId)
         {
             var slot = GetSlotByPlayerID(requesterSlotId);

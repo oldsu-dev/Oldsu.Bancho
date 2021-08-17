@@ -23,7 +23,11 @@ namespace Oldsu.Bancho.Connections
 
         public Version Version { get;  set; } 
         public Guid Guid { get; }
-        
+
+        public string IP => ConnectionInfo.Headers.TryGetValue("x-forwarded-for", out var ip)
+            ? ip
+            : ConnectionInfo.ClientIpAddress;
+
         public Connection(Guid guid, IWebSocketConnection webSocketConnection, int pingInterval)
         {
             RawConnection = webSocketConnection;

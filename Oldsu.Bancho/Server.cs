@@ -1,30 +1,20 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
-using MaxMind.Db;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Handshakes;
-using Oldsu.Bancho.Multiplayer;
-using Oldsu.Bancho.Objects;
-using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 using Oldsu.Enums;
 using Oldsu.Types;
-using Oldsu.Utils;
 using Oldsu.Utils.Location;
 using Oldsu.Utils.Threading;
-using Action = Oldsu.Enums.Action;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
@@ -101,43 +91,56 @@ namespace Oldsu.Bancho
             _ => Version.NotApplicable,
         };
 
-        private async Task<(LoginResult, UserInfo?, Version)> Authenticate(string authString)
+        private async Task<(LoginResult, UserInfo?, Version, byte utcOffset, bool showCity)> Authenticate(string authString)
         {
-            var authFields = authString.Split().Select(s => s.Trim()).ToArray();
-            
-            if (authFields.Length != 3)
-                return (LoginResult.TooOldVersion, null, Version.NotApplicable);
-                
-            var (loginUsername, loginPassword, info) =
-                (authFields[0], authFields[1], authFields[2]);
-        
-            var version = GetProtocol(info.Split("|")[0]);
+            try
+            {
+                var authFields = authString.Split().Select(s => s.Trim()).ToArray();
 
-            if (version == Version.NotApplicable)
-                return (LoginResult.TooOldVersion, null, version);
+                if (authFields.Length != 3)
+                    return (LoginResult.TooOldVersion, null, Version.NotApplicable, 0, false);
 
-            await using var db = new Database();
-            var user = await db.AuthenticateAsync(loginUsername, loginPassword);
+                var (loginUsername, loginPassword, info) =
+                    (authFields[0], authFields[1], authFields[2]);
 
-            if (user == null)
-                return (LoginResult.AuthenticationFailed, null, version);
+                var infoFields = info.Split("|");
+                var version = GetProtocol(infoFields[0]);
 
-            if (user.Banned)
-                return (LoginResult.Banned, null, version);
+                if (version == Version.NotApplicable)
+                    return (LoginResult.TooOldVersion, null, version, 0, false);
 
-            // user is found, user is not banned, client is not too old. Everything is fine.
-            return (LoginResult.AuthenticationSuccessful, user, version);
+                await using var db = new Database();
+                var user = await db.AuthenticateAsync(loginUsername, loginPassword);
+
+                if (user == null)
+                    return (LoginResult.AuthenticationFailed, null, version, 0, false);
+
+                if (user.Banned)
+                    return (LoginResult.Banned, null, version, 0, false);
+
+                // user is found, user is not banned, client is not too old. Everything is fine.
+                return (LoginResult.AuthenticationSuccessful, user, version,
+                    byte.Parse(infoFields[1]), infoFields[2] == "1");
+            }
+            catch
+            {
+                return (LoginResult.TooOldVersion, null, Version.NotApplicable, 0, false);
+            }
         }
 
-        private async Task<Presence> GetPresenceAsync(UserInfo user, string ip)
+        private async Task<Presence> GetPresenceAsync(UserInfo user, byte utcOffset, bool showCity, string ip)
         {
-            var (locationX, locationY) = await Geolocation.GetGeolocationAsync(ip);
+            var (locationX, locationY, country) = showCity switch
+            {
+                true => await Geolocation.GetGeolocationAsync(ip),
+                false => (0, 0, (byte)0)
+            };
 
             return new Presence
             {
                 Privilege = user!.Privileges,
-                UtcOffset = 0,
-                Country = user!.Country,
+                UtcOffset = (byte)(utcOffset + 24),
+                Country = country,
                 Longitude = locationX,
                 Latitude = locationY
             };
@@ -151,11 +154,16 @@ namespace Oldsu.Bancho
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
         }
         
-        private async void HandleUserDisconnection(uint userId)
+        private async void HandleUserDisconnection(Guid guid, uint userId)
         {
             using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
-            
-            authenticatedConnectionsLock.Value.Remove(userId);
+
+            if (authenticatedConnectionsLock.Value.TryGetValue(userId, out var authConnection) &&
+                authConnection.Connection.Guid == guid)
+            {
+                await authConnection.Context.DisposeAsync();
+                authenticatedConnectionsLock.Value.Remove(userId);
+            }
         }
 
         private async void HandleConnection(IWebSocketConnection webSocketConnection)
@@ -174,7 +182,8 @@ namespace Oldsu.Bancho
             UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
             connection.Login -= HandleLogin;
 
-            var (loginResult, userInfo, version) = await Authenticate(authString);
+            var (loginResult, userInfo, version, utcOffset, showCity) = await Authenticate(authString);
+            var presence = await GetPresenceAsync(userInfo!, utcOffset, showCity, connection.IP);
 
             if (loginResult != LoginResult.AuthenticationSuccessful)
             {
@@ -183,14 +192,18 @@ namespace Oldsu.Bancho
                 return;
             }
 
-            using (var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard())
-                if (authenticatedConnectionsLock.Value.TryGetValue(userInfo!.UserID, out var user))
-                {
-                    user.Connection.Disconnect();
-                    await user.Context.WaitDisconnection;
-                }
+            using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
+            if (authenticatedConnectionsLock.Value.TryGetValue(userInfo!.UserID, out var user))
+            {
+                user.Connection.Disconnect();
+                await user.Context.WaitDisconnection;
+                authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
+            }
 
-            await UpgradeConnection(connection, version, userInfo!);
+            var result = await UpgradeConnection(connection, version, userInfo!, presence);
+            
+            authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
+            authenticatedConnectionsLock.Value.Add(userInfo.UserID, result);
         }
 
         private static readonly BanchoPacket _signaturePacket = new BanchoPacket(new Signature
@@ -199,19 +212,14 @@ namespace Oldsu.Bancho
             ServerName = "Oldsu!"
         });
 
-        private async Task UpgradeConnection(UnauthenticatedConnection connection, Version version, UserInfo userInfo)
+        private async Task<(AuthenticatedConnection, UserContext)> UpgradeConnection(
+            UnauthenticatedConnection connection, Version version, UserInfo userInfo, Presence presence)
         {
             using var connectionsLock = await _connections.AcquireWriteLockGuard();
-            using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
-
+            
             var userContext = new UserContext(userInfo.UserID, userInfo.Username, userInfo.Privileges,
                 _userStateProvider, _streamingProvider, _lobbyProvider, _userRequestProvider, _chatProvider);
-            
-            var presence = await GetPresenceAsync(userInfo!,
-                connection.ConnectionInfo.Headers.TryGetValue("X-Forwaded-For", out var ip)
-                    ? ip
-                    : connection.ConnectionInfo.ClientIpAddress);
-            
+
             var upgradedConnection = await connection.Upgrade(version);
 
             connectionsLock.Value[upgradedConnection.Guid] = upgradedConnection;
@@ -224,19 +232,14 @@ namespace Oldsu.Bancho
             
             upgradedConnection.PacketReceived += (_, packet) => handler.ProcessPacket(packet);
             
-            upgradedConnection.Disconnected += (_, _) => handler.DisposeUserContext();
             upgradedConnection.Disconnected += HandleDisconnection;
-            upgradedConnection.Disconnected += (_, _) => HandleUserDisconnection(userInfo.UserID);
+            upgradedConnection.Disconnected += (_, _) => HandleUserDisconnection(upgradedConnection.Guid, userInfo.UserID);
             
-            // Update connection object
-            authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
-            authenticatedConnectionsLock.Value.Add(userInfo.UserID, (upgradedConnection, userContext));
-
             await upgradedConnection.SendPacketAsync(_signaturePacket);
 
             var autojoinChannels = await _chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
             var availableChannels = await _chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
-
+            
             await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
 
             List<Friendship> friendships;
@@ -256,6 +259,8 @@ namespace Oldsu.Bancho
                     availableChannels,
                     friendships
                 ));
+
+            return (upgradedConnection, userContext);
         }
 
         /// <summary>

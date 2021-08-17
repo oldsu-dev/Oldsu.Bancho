@@ -34,6 +34,11 @@ namespace Oldsu.Bancho.Connections
             {
                 await packet.Handle(_userContext, _connection);
             }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                _connection.Disconnect();
+            }
             finally
             {
                 _eventSemaphore.Release();
@@ -59,7 +64,7 @@ namespace Oldsu.Bancho.Connections
             }
         }
 
-        public async void DisposeUserContext()
+        public async Task DisposeUserContext()
         {
             await _eventSemaphore.WaitAsync();
 
