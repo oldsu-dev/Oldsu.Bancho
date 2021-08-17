@@ -22,7 +22,7 @@ await using (var database = new Database()) {
 }
 
 // Future usage from cli: oldsu ws://127.0.0.1/ or something like that
-var server = new Server("ws://127.0.0.1:13381/",
+var server = new Server("ws://0.0.0.0:13381/",
     userDataProvider, streamingProvider, lobbyProvider, userRequestProvider, chatProvider);
 
 await server.Run();
