@@ -30,6 +30,8 @@ namespace Oldsu.Bancho
         private AsyncMutexWrapper<Dictionary<uint,
             (AuthenticatedConnection Connection, UserContext Context)>> _authenticatedConnections;
 
+        private SemaphoreSlim _connectionSemaphore = new SemaphoreSlim(1, 1);
+
         private async Task PingWatchdog(CancellationToken ct = default)
         {
             for (;;)
@@ -153,18 +155,19 @@ namespace Oldsu.Bancho
             Debug.WriteLine($"{conn.ConnectionInfo.ClientIpAddress} disconnected. (${conn.GetType()}).");
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
         }
-        
-        private async void HandleUserDisconnection(Guid guid, uint userId)
+
+        private async Task DisconnectUser(uint userId)
         {
             using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
 
-            if (authenticatedConnectionsLock.Value.TryGetValue(userId, out var authConnection) &&
-                authConnection.Connection.Guid == guid)
+            if (authenticatedConnectionsLock.Value.TryGetValue(userId, out var authConnection))
             {
-                await authConnection.Context.DisposeAsync();
                 authenticatedConnectionsLock.Value.Remove(userId);
+                await authConnection.Context.DisposeAsync();
             }
         }
+
+        private async void HandleUserDisconnection(uint userId) => await DisconnectUser(userId);
 
         private async void HandleConnection(IWebSocketConnection webSocketConnection)
         {
@@ -181,33 +184,43 @@ namespace Oldsu.Bancho
 
         private async void HandleLogin(object? sender, string authString)
         {
-            UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
-
-            connection.Login -= HandleLogin;
-
-            var (loginResult, userInfo, version, utcOffset, showCity) = await Authenticate(authString);
-
-            if (loginResult != LoginResult.AuthenticationSuccessful)
+            try
             {
-                await connection.SendPacketAsync(new BanchoPacket(new Login {LoginStatus = (int) loginResult}));
-                connection.Disconnect();
-                return;
-            }
-            
-            var presence = await GetPresenceAsync(userInfo!, utcOffset, showCity, connection.IP);
+                await _connectionSemaphore.WaitAsync();
+                
+                UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
 
-            using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
-            if (authenticatedConnectionsLock.Value.TryGetValue(userInfo!.UserID, out var user))
+                connection.Login -= HandleLogin;
+
+                var (loginResult, userInfo, version, utcOffset, showCity) = await Authenticate(authString);
+
+                if (loginResult != LoginResult.AuthenticationSuccessful)
+                {
+                    await connection.SendPacketAsync(new BanchoPacket(new Login {LoginStatus = (int) loginResult}));
+                    connection.Disconnect();
+                    return;
+                }
+                
+                var presence = await GetPresenceAsync(userInfo!, utcOffset, showCity, connection.IP);
+            
+                Task disconnectionTask = _authenticatedConnections.LockAsync(connections =>
+                {
+                    if (!connections.TryGetValue(userInfo!.UserID, out var user)) 
+                        return Task.CompletedTask;
+                    
+                    user.Connection.Disconnect();
+                    return user.Context.WaitDisconnection;
+                });
+
+                await disconnectionTask;
+
+                var result = await UpgradeConnection(connection, version, userInfo!, presence);
+                await _authenticatedConnections.LockAsync(connections => connections.Add(userInfo!.UserID, result));
+            }
+            finally
             {
-                user.Connection.Disconnect();
-                await user.Context.WaitDisconnection;
-                authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
+                _connectionSemaphore.Release();
             }
-
-            var result = await UpgradeConnection(connection, version, userInfo!, presence);
-            
-            authenticatedConnectionsLock.Value.Remove(userInfo.UserID);
-            authenticatedConnectionsLock.Value.Add(userInfo.UserID, result);
         }
 
         private static readonly BanchoPacket _signaturePacket = new BanchoPacket(new Signature
@@ -237,7 +250,7 @@ namespace Oldsu.Bancho
             upgradedConnection.PacketReceived += (_, packet) => handler.ProcessPacket(packet);
             
             upgradedConnection.Disconnected += HandleDisconnection;
-            upgradedConnection.Disconnected += (_, _) => HandleUserDisconnection(upgradedConnection.Guid, userInfo.UserID);
+            upgradedConnection.Disconnected += (_, _) => HandleUserDisconnection(userInfo.UserID);
             
             await upgradedConnection.SendPacketAsync(_signaturePacket);
 
