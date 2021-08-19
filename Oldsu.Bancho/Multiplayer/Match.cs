@@ -88,7 +88,7 @@ namespace Oldsu.Bancho.Multiplayer
         
         public MatchState(int matchId, int hostId, MatchSettings settings)
         {
-            UUID = new Guid();
+            UUID = Guid.NewGuid();
             
             AllowedVersions = new HashSet<Version> { Version.B904 };
 
