@@ -37,6 +37,8 @@ namespace Oldsu.Bancho.Multiplayer
     public class MatchState : ICloneable
     {
         public const int MaxMatchSize = 8;
+
+        public Guid UUID { get; }
         
         public int MatchID { get; set; }
         public int HostID { get; set; }
@@ -86,6 +88,8 @@ namespace Oldsu.Bancho.Multiplayer
         
         public MatchState(int matchId, int hostId, MatchSettings settings)
         {
+            UUID = new Guid();
+            
             AllowedVersions = new HashSet<Version> { Version.B904 };
 
             Settings = settings;

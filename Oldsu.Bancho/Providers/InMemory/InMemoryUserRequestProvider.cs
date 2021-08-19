@@ -12,8 +12,11 @@ namespace Oldsu.Bancho.Providers.InMemory
 
     public class InMemoryUserRequestProvider : IUserRequestProvider
     {
+        private readonly LoggingManager _loggingManager;
+        
         public InMemoryUserRequestProvider(LoggingManager loggingManager)
         {
+            _loggingManager = loggingManager;
             _observables = new AsyncRwLockWrapper<Dictionary<uint, InMemoryUserRequestObservable>>(new());
         }
         
@@ -38,6 +41,14 @@ namespace Oldsu.Bancho.Providers.InMemory
             if (!observableLock.Value.TryGetValue(userId, out var observable))
                 throw new UserNotFoundException();
 
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Send quit user request.", 
+                null, 
+                new
+                {
+                    UserID = userId
+                });
+            
             await observable.Notify(new ProviderEvent
             {
                 Data = UserRequestTypes.QuitMatch,
@@ -53,6 +64,14 @@ namespace Oldsu.Bancho.Providers.InMemory
             if (!observableLock.Value.TryGetValue(userId, out var observable))
                 throw new UserNotFoundException();
 
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Send announce transfer host request.", 
+                null, 
+                new
+                {
+                    UserID = userId
+                });
+            
             await observable.Notify(new ProviderEvent
             {
                 Data = UserRequestTypes.AnnounceTransferHost,

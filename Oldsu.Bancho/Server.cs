@@ -150,6 +150,11 @@ namespace Oldsu.Bancho
             
             Debug.WriteLine($"{conn.ConnectionInfo.ClientIpAddress} disconnected. (${conn.GetType()}).");
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
+            
+            await _loggingManager.LogInfo<Server>("Client disconnected.", null, new
+            {
+                conn.IP
+            });
         }
 
         private async Task DisconnectUser(uint userId)
@@ -161,6 +166,12 @@ namespace Oldsu.Bancho
                 authenticatedConnectionsLock.Value.Remove(userId);
                 await authConnection.Context.DisposeAsync();
             }
+            
+            await _loggingManager.LogInfo<Server>("User disconnected.", null, new
+            {                    
+                authConnection.Context.Username,
+                authConnection.Context.UserID,
+            });
         }
 
         private async void HandleUserDisconnection(uint userId) => await DisconnectUser(userId);
@@ -204,7 +215,9 @@ namespace Oldsu.Bancho
                 
                 await _loggingManager.LogInfo<Server>("User authenticated.", null, new
                 {
-                    UserInfo = userInfo,
+                    userInfo!.Username,
+                    userInfo.UserID,
+                    userInfo.Privileges,
                     Version = version,
                     ShowCity = showCity,
                     UtcOffset = utcOffset

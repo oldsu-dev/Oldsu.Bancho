@@ -395,6 +395,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 new
                 {
                     UserID = userId,
+                    MatchUUID = match.UUID,
                     MatchID = matchId,
                     Reason = notJoinedReason
                 });
@@ -405,7 +406,8 @@ namespace Oldsu.Bancho.Providers.InMemory
                 null, 
                 new
                 {
-                    UserID = userId,                    
+                    UserID = userId,      
+                    MatchUUID = match.UUID,
                     MatchID = matchId,
                 });
             
@@ -454,6 +456,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 new
                 {
                     UserID = userId,
+                    MatchUUID = match.UUID,
                     match.MatchID
                 });
             
@@ -467,6 +470,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 new
                 {
                     UserID = userId,
+                    MatchUUID = match.UUID,
                     match.MatchID
                 });
             
@@ -530,6 +534,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             OldHost = userId,
                             NewHost = newHostSlot
                         }
@@ -552,6 +557,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             UserID = userId
                         }
                     ));
@@ -570,6 +576,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             UserID = userId
                         }
                     ));
@@ -588,6 +595,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             UserID = userId
                         }
                     ));
@@ -602,6 +610,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             UserID = userId,
                             NewSlot = newSlot
                         }
@@ -621,6 +630,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             MatchSettings = match.Settings
                         }
                     ));
@@ -639,6 +649,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             UserID = userId
                         }
                     ));
@@ -657,6 +668,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             UserID = userId
                         }
                     ));
@@ -675,6 +687,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         new
                         {
                             match.MatchID,
+                            MatchUUID = match.UUID,
                             Mods = mods
                         }
                     ));
@@ -722,6 +735,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 new
                 {
                     match.MatchID,
+                    MatchUUID = match.UUID,
                     Slot = slot
                 });
             
@@ -766,7 +780,8 @@ namespace Oldsu.Bancho.Providers.InMemory
                     null, 
                     new
                     {
-                        match.MatchID
+                        match.MatchID,
+                        MatchUUID = match.UUID,
                     });
                 
                 match = (match.Clone() as MatchState)!;
@@ -802,7 +817,8 @@ namespace Oldsu.Bancho.Providers.InMemory
         
         public async Task MatchSkip(uint userId)
         {
-            uint matchId; 
+            uint matchId;
+            Guid uuid;
             
             using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
@@ -823,6 +839,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 match.Skip(userId);
 
                 matchId = playerData.MatchID;
+                uuid = match.UUID;
                 
                 if (match.AllSkipped)
                     goto DoNotifySkip;
@@ -836,7 +853,8 @@ namespace Oldsu.Bancho.Providers.InMemory
                 null, 
                 new
                 {
-                    MatchID = matchId
+                    MatchID = matchId,
+                    MatchUUID = uuid,
                 });
             
             await NotifyMatchSkip(matchId);
@@ -846,7 +864,8 @@ namespace Oldsu.Bancho.Providers.InMemory
         
         public async Task MatchLoad(uint userId)
         {
-            uint matchId; 
+            uint matchId;
+            Guid uuid;
             
             using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
@@ -867,6 +886,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 match.Load(userId);
 
                 matchId = playerData.MatchID;
+                uuid = match.UUID;
                 
                 if (match.AllLoaded)
                     goto DoNotifyLoad;
@@ -880,7 +900,8 @@ namespace Oldsu.Bancho.Providers.InMemory
                 null, 
                 new
                 {
-                    MatchID = matchId
+                    MatchID = matchId,
+                    MatchUUID = uuid
                 });
             
             await NotifyMatchLoad(matchId);
@@ -947,6 +968,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 new
                 {
                     MatchID = matchId,
+                    MatchUUID = match.UUID,
                     FinalScoreFrames = finalScoreFrames
                 });
             
