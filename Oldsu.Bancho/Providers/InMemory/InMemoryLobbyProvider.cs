@@ -334,6 +334,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 {
                     UserID = userId,
                     match.MatchID,
+                    MatchUUID = match.UUID
                 });
             
             await NotifyMatchUpdate(match);
