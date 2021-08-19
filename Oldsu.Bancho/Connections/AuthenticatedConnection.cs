@@ -4,22 +4,27 @@ using System.Threading;
 using System.Threading.Tasks;
 using Fleck;
 using Oldsu.Bancho.Enums;
+using Oldsu.Bancho.Exceptions;
 using Oldsu.Bancho.Handshakes;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
+using Oldsu.Logging;
 using Oldsu.Utils;
 
 namespace Oldsu.Bancho.Connections
 {
     public class ConnectionEventHandler
     {
-        public ConnectionEventHandler(UserContext userContext, Connection connection)
+        private readonly LoggingManager _loggingManager;
+        
+        public ConnectionEventHandler(LoggingManager loggingManager, UserContext userContext, Connection connection)
         {
             _userContext = userContext;
             _connection = connection;
             _eventSemaphore = new SemaphoreSlim(1,1);
+            _loggingManager = loggingManager;
         }
         
         private UserContext _userContext;
@@ -34,9 +39,18 @@ namespace Oldsu.Bancho.Connections
             {
                 await packet.Handle(_userContext, _connection);
             }
-            catch (Exception e)
+            catch (OldsuException oldsuException)
             {
-                Console.WriteLine(e);
+                await _loggingManager.LogCritical<ConnectionEventHandler>(
+                    "Thrown exception when handling packet. User was disconnected", 
+                    oldsuException, 
+                    new
+                    {
+                        _userContext.Username,
+                        _userContext.UserID,
+                        _userContext.Privileges,
+                    });
+                
                 _connection.Disconnect();
             }
             finally

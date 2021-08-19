@@ -12,6 +12,7 @@ using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 using Oldsu.Enums;
+using Oldsu.Logging;
 using Oldsu.Types;
 using Oldsu.Utils.Location;
 using Oldsu.Utils.Threading;
@@ -60,12 +61,7 @@ namespace Oldsu.Bancho
         ///     Initializes the websocket class
         /// </summary>
         /// <param name="address">Address to bind server to. Example: ws://127.0.0.1:3000</param>
-        public Server(string address, 
-            IUserStateProvider userDataProvider, 
-            IStreamingProvider streamingProvider, 
-            ILobbyProvider lobbyProvider,
-            IUserRequestProvider userRequestProvider,
-            IChatProvider chatProvider)
+        public Server(string address, DependencyManager dependencyManager, LoggingManager loggingManager)
         {
             _server = new WebSocketServer(address);
             _connections = new AsyncRwLockWrapper<Dictionary<Guid, Connection>>(new());
@@ -74,18 +70,18 @@ namespace Oldsu.Bancho
                 new AsyncMutexWrapper<Dictionary<uint, 
                     (AuthenticatedConnection Connection, UserContext Context)>>(new());
 
-            _userStateProvider = userDataProvider;
-            _streamingProvider = streamingProvider;
-            _lobbyProvider = lobbyProvider;
-            _userRequestProvider = userRequestProvider;
-            _chatProvider = chatProvider;
+            _dependencyManager = dependencyManager;
+            _loggingManager = loggingManager;
+            
+            // _userStateProvider = userDataProvider;
+            // _streamingProvider = streamingProvider;
+            // _lobbyProvider = lobbyProvider;
+            // _userRequestProvider = userRequestProvider;
+            // _chatProvider = chatProvider;
         }
 
-        private IUserStateProvider _userStateProvider;
-        private IStreamingProvider _streamingProvider;
-        private ILobbyProvider _lobbyProvider;
-        private IUserRequestProvider _userRequestProvider;
-        private IChatProvider _chatProvider;
+        private DependencyManager _dependencyManager;
+        private LoggingManager _loggingManager;
 
         private static Version GetProtocol(string clientBuild) => clientBuild switch
         {
@@ -184,12 +180,17 @@ namespace Oldsu.Bancho
 
         private async void HandleLogin(object? sender, string authString)
         {
+            await _connectionSemaphore.WaitAsync();
+            
             try
             {
-                await _connectionSemaphore.WaitAsync();
-                
                 UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
 
+                await _loggingManager.LogInfo<Server>("Client connected.", null, new
+                {
+                    connection.IP,
+                });
+                    
                 connection.Login -= HandleLogin;
 
                 var (loginResult, userInfo, version, utcOffset, showCity) = await Authenticate(authString);
@@ -200,6 +201,14 @@ namespace Oldsu.Bancho
                     connection.Disconnect();
                     return;
                 }
+                
+                await _loggingManager.LogInfo<Server>("User authenticated.", null, new
+                {
+                    UserInfo = userInfo,
+                    Version = version,
+                    ShowCity = showCity,
+                    UtcOffset = utcOffset
+                });
                 
                 var presence = await GetPresenceAsync(userInfo!, utcOffset, showCity, connection.IP);
             
@@ -234,14 +243,14 @@ namespace Oldsu.Bancho
         {
             using var connectionsLock = await _connections.AcquireWriteLockGuard();
             
-            var userContext = new UserContext(userInfo.UserID, userInfo.Username, userInfo.Privileges,
-                _userStateProvider, _streamingProvider, _lobbyProvider, _userRequestProvider, _chatProvider);
+            var userContext = new UserContext(userInfo.UserID, userInfo.Username, userInfo.Privileges, 
+                _dependencyManager, _loggingManager);
 
             var upgradedConnection = await connection.Upgrade(version);
 
             connectionsLock.Value[upgradedConnection.Guid] = upgradedConnection;
             
-            var handler = new ConnectionEventHandler(userContext, upgradedConnection);
+            var handler = new ConnectionEventHandler(_loggingManager, userContext, upgradedConnection);
 
             // Bind connection events
             userContext.SubscriptionManager.PacketInbound += (_, packet) => handler.PacketInbound(packet);
@@ -254,8 +263,11 @@ namespace Oldsu.Bancho
             
             await upgradedConnection.SendPacketAsync(_signaturePacket);
 
-            var autojoinChannels = await _chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
-            var availableChannels = await _chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
+            var chatProvider = _dependencyManager.Get<IChatProvider>();
+            var userStateProvider = _dependencyManager.Get<IUserStateProvider>();
+            
+            var autojoinChannels = await chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
+            var availableChannels = await chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
             
             await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
 
@@ -269,7 +281,7 @@ namespace Oldsu.Bancho
 
             await upgradedConnection.SendHandshake(
                 new CommonHandshake(
-                    await _userStateProvider.GetAllUsersAsync(),
+                    await userStateProvider.GetAllUsersAsync(),
                     userInfo.UserID,
                     presence.Privilege,
                     autojoinChannels,
@@ -286,6 +298,8 @@ namespace Oldsu.Bancho
         /// </summary>
         public async Task Run(CancellationToken ct = default)
         {
+            await _loggingManager.LogInfo<Server>("Server is running.");
+            
             await Task.Factory.StartNew(() => PingWatchdog(ct), ct);
             
             try

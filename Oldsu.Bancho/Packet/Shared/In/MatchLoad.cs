@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 using Oldsu.Enums;
 
@@ -9,10 +10,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            await userContext.SubscriptionManager.SubscribeToMatchGameUpdates(
-                (await userContext.LobbyProvider.GetMatchGameObservable(userContext.UserID))!);
+            var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
             
-            await userContext.LobbyProvider.MatchLoad(userContext.UserID);
+            await userContext.SubscriptionManager.SubscribeToMatchGameUpdates(
+                (await lobbyProvider.GetMatchGameObservable(userContext.UserID))!);
+            
+            await lobbyProvider.MatchLoad(userContext.UserID);
         }
     }
 }   

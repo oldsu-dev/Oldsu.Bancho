@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -12,7 +13,8 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            var result = await userContext.LobbyProvider.JoinMatch(userContext.UserID, MatchID, GamePassword);
+            var result = await userContext.Dependencies.Get<ILobbyProvider>()
+                .JoinMatch(userContext.UserID, MatchID, GamePassword);
 
             if (result is { } matchState)
             {

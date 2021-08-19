@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -9,7 +10,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            await userContext.LobbyProvider.TryLeaveMatch(userContext.UserID);
+            await userContext.Dependencies.Get<ILobbyProvider>().TryLeaveMatch(userContext.UserID);
 
             await userContext.SubscriptionManager.UnsubscribeFromChannel("#multiplayer");
             await connection.SendPacketAsync(new BanchoPacket(new ChannelLeft() {ChannelName = "#multiplayer"}));

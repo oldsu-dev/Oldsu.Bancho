@@ -2,6 +2,7 @@
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Exceptions.Lobby;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -10,11 +11,13 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            if (await userContext.LobbyProvider.IsPlayerInMatch(userContext.UserID))
+            var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
+            
+            if (await lobbyProvider.IsPlayerInMatch(userContext.UserID))
                 throw new UserAlreadyInMatchException();
             
-            await userContext.SubscriptionManager.SubscribeToMatchUpdates(userContext.LobbyProvider); 
-            var matches = await userContext.LobbyProvider.GetAvailableMatches();
+            await userContext.SubscriptionManager.SubscribeToMatchUpdates(lobbyProvider); 
+            var matches = await lobbyProvider.GetAvailableMatches();
 
             foreach (var match in matches)
                 await connection.SendPacketAsync(new BanchoPacket(new MatchUpdate {MatchState = match}));

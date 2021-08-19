@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -14,25 +15,35 @@ namespace Oldsu.Bancho.Packet.Shared.In
             switch (ChannelName)
             {
                 case "#multiplayer":
+                {
+                    var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
+                    
                     await userContext.SubscriptionManager.SubscribeToChannel(
-                        await userContext.LobbyProvider.GetMatchChatChannel(userContext.UserID));
-                
+                        await lobbyProvider.GetMatchChatChannel(userContext.UserID));
+
                     await connection.SendPacketAsync(new BanchoPacket(new ChannelJoined()
                         {ChannelName = "#multiplayer"}));
-                    break;
-                
+                } break;
+
                 case "#lobby":
-                    await userContext.SubscriptionManager.SubscribeToChannel(
-                        await userContext.LobbyProvider.GetLobbyChatChannel());
+                {
+                    var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
                     
+                    await userContext.SubscriptionManager.SubscribeToChannel(
+                        await lobbyProvider.GetLobbyChatChannel());
+
                     await connection.SendPacketAsync(new BanchoPacket(new ChannelJoined()
                         {ChannelName = "#lobby"}));
-                    break;
+                } break;
+
                 default:
-                    var channel = await userContext.ChatProvider.GetChannel(ChannelName, userContext.Privileges);
+                {
+                    var chatProvider = userContext.Dependencies.Get<IChatProvider>();
+                    
+                    var channel = await chatProvider.GetChannel(ChannelName, userContext.Privileges);
                     if (channel is not null)
                         await userContext.JoinChannel(channel);
-                    break;
+                } break;
             }
         }
     }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Oldsu.Bancho.Exceptions.UserRequest;
+using Oldsu.Logging;
 using Oldsu.Utils;
 using Oldsu.Utils.Threading;
 
@@ -11,7 +12,7 @@ namespace Oldsu.Bancho.Providers.InMemory
 
     public class InMemoryUserRequestProvider : IUserRequestProvider
     {
-        public InMemoryUserRequestProvider()
+        public InMemoryUserRequestProvider(LoggingManager loggingManager)
         {
             _observables = new AsyncRwLockWrapper<Dictionary<uint, InMemoryUserRequestObservable>>(new());
         }

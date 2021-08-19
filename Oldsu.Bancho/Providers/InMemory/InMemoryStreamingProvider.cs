@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Logging;
 using Oldsu.Utils.Threading;
 
 namespace Oldsu.Bancho.Providers.InMemory
@@ -14,11 +15,15 @@ namespace Oldsu.Bancho.Providers.InMemory
         private readonly AsyncRwLockWrapper<Dictionary<uint, InMemorySpectatorObservable>> _spectatorObservables;
         private readonly AsyncMutexWrapper<Dictionary<uint, uint>> _streamingPairs;
 
-        public InMemoryStreamingProvider()
+        private readonly LoggingManager _loggingManager;
+        
+        public InMemoryStreamingProvider(LoggingManager loggingManager)
         {
             _streamerObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemoryStreamerObservable>>(new());
             _spectatorObservables = new AsyncRwLockWrapper<Dictionary<uint, InMemorySpectatorObservable>>(new ());
             _streamingPairs = new AsyncMutexWrapper<Dictionary<uint, uint>>(new());
+
+            _loggingManager = loggingManager;
         }
 
         public Task<IStreamerObservable?> GetStreamerObserver(uint userId) => 
@@ -52,6 +57,12 @@ namespace Oldsu.Bancho.Providers.InMemory
 
         public async Task NotifySpectatorJoined(uint userId, uint spectatorUserId)
         {
+            await _loggingManager.LogInfo<IStreamingProvider>("Spectator joined.", null, new
+            {
+                UserID = userId, 
+                SpectatorUserID = spectatorUserId
+            });
+            
             using var streamerObservablesLock = await _streamerObservables.AcquireReadLockGuard();
             using var spectatorObservablesLock = await _spectatorObservables.AcquireReadLockGuard();
             using var spectatorCouplesLock = await _streamingPairs.AcquireLockGuard();
@@ -80,6 +91,12 @@ namespace Oldsu.Bancho.Providers.InMemory
             using var spectatorCouplesLock = await _streamingPairs.AcquireLockGuard();
    
             spectatorCouplesLock.Value.Remove(spectatorUserId, out var userId);
+            
+            await _loggingManager.LogInfo<IStreamingProvider>("Spectator left.", null, new
+            {
+                UserID = userId, 
+                SpectatorUserID = spectatorUserId
+            });
    
             await streamerObservablesLock.Value[userId].Notify(new ProviderEvent
             {

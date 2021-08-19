@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Multiplayer;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -12,7 +13,8 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            var match = await userContext.LobbyProvider.CreateMatch(userContext.UserID, MatchSettings);
+            var match = await userContext.Dependencies.Get<ILobbyProvider>()
+                .CreateMatch(userContext.UserID, MatchSettings);
             
             if (match is null)
                 await connection.SendPacketAsync(new BanchoPacket(new MatchJoinFail()));

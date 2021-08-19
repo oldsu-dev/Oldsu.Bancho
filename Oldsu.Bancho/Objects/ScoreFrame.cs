@@ -1,6 +1,8 @@
+using System;
+
 namespace Oldsu.Bancho.Objects
 {
-    public class ScoreFrame 
+    public class ScoreFrame : ICloneable
     {
         public int Time { get; set; }
         public byte SlotID { get; set; } 
@@ -15,10 +17,11 @@ namespace Oldsu.Bancho.Objects
         public ushort CurrentCombo { get; set; }
         public bool Perfect { get; set; }
         public byte CurrentHealth { get; set; }
+
+        public bool Passed => CurrentHealth != 254;
+        
         public byte TagByte { get; set; }
-        
-        // 20 seconds wait time.........................................
-        
+
         public static ScoreFrame FromB904ScoreFrame(Packet.Objects.B904.ScoreFrame srcScoreFrame)
         {
             var destScoreFrame = new ScoreFrame
@@ -41,5 +44,7 @@ namespace Oldsu.Bancho.Objects
 
             return destScoreFrame;
         }
+
+        public object Clone() => MemberwiseClone();
     }
 }

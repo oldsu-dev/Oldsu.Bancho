@@ -7,6 +7,7 @@ using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Bancho.User;
 using Oldsu.Enums;
+using Oldsu.Logging;
 using Oldsu.Types;
 using Oldsu.Utils;
 using Oldsu.Utils.Threading;
@@ -17,8 +18,11 @@ namespace Oldsu.Bancho.Providers.InMemory
     {
         private readonly AsyncRwLockWrapper<Dictionary<uint, UserData>> _wrapper;
 
-        public InMemoryUserStateProvider()
+        private readonly LoggingManager _loggingManager;
+        
+        public InMemoryUserStateProvider(LoggingManager loggingManager)
         {
+            _loggingManager = loggingManager;
             _wrapper = new AsyncRwLockWrapper<Dictionary<uint, UserData>>(new ());
         }
 
@@ -55,6 +59,15 @@ namespace Oldsu.Bancho.Providers.InMemory
 
         public async Task SetActivityAsync(uint userId, Activity activity)
         {
+            await _loggingManager.LogInfo<IUserStateProvider>(
+                "User updated activity",
+                null,
+                new
+                {
+                    UserID = userId,
+                    Activity = activity
+                });
+            
             var newData = await _wrapper.WriteAsync(users =>
             {
                 users[userId].Activity = activity;
@@ -70,6 +83,15 @@ namespace Oldsu.Bancho.Providers.InMemory
 
         public async Task SetStatsAsync(uint userId, StatsWithRank? stats)
         {
+            await _loggingManager.LogInfo<IUserStateProvider>(
+                "User updated stats",
+                null,
+                new
+                {
+                    UserID = userId,
+                    Stats = stats
+                });
+            
             var newData = await _wrapper.WriteAsync(users =>
             {
                 users[userId].Stats = stats;

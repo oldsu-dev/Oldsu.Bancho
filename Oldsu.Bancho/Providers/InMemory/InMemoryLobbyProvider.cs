@@ -9,6 +9,7 @@ using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Out.B904;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Enums;
+using Oldsu.Logging;
 using Oldsu.Multiplayer.Enums;
 using Oldsu.Types;
 using Oldsu.Utils.Threading;
@@ -21,21 +22,75 @@ namespace Oldsu.Bancho.Providers.InMemory
     
     public class InMemoryMatchSetupObservable : InMemoryObservable<ProviderEvent>, IMatchSetupObservable { }
     public class InMemoryMatchGameObservable : InMemoryObservable<ProviderEvent>, IMatchGameObservable { }
+
+    public class InMemoryMatchChannel : InMemoryObservable<ProviderEvent>, IChatChannel
+    {
+        public readonly static Channel Default = new Channel
+        {
+            Tag = "#multiplayer",
+            Topic = "Multiplayer room discussion.",
+            AutoJoin = true,
+            CanWrite = true,
+            RequiredPrivileges = Privileges.Normal
+        };
+
+        public Channel ChannelInfo => Default;
+        public uint MatchID { get; }
+
+        private LoggingManager _loggingManager;
+        
+        
+        public InMemoryMatchChannel(uint matchId, LoggingManager loggingManager)
+        {
+            _loggingManager = loggingManager;
+            MatchID = matchId;
+        }
+        
+        public async Task SendMessage(string username, string content)
+        {
+            await _loggingManager.LogInfo<IChatChannel>(
+                "Message received.", 
+                null, 
+                new
+                {
+                    Sender = username,
+                    Content = content,
+                    Channel = ChannelInfo.Tag,
+                    MatchID 
+                });
+                
+            await Notify(new ProviderEvent
+            {
+                DataType = ProviderEventType.BanchoPacket,
+                ProviderType = ProviderType.Chat,
+                Data = new BanchoPacket(new SendMessage
+                {
+                    Contents = content,
+                    Sender = username,
+                    Target = ChannelInfo!.Tag
+                })
+            });
+        }
+    }
     
     public class InMemoryLobbyProvider : InMemoryObservable<ProviderEvent>, ILobbyProvider
     {
         private InMemoryChannel _lobbyChatChannel;
-        
+
         private const int MatchesAvailable = 256;
 
         private readonly AsyncRwLockWrapper<MatchState?[]> _matches;
-        private readonly AsyncRwLockWrapper<InMemoryChannel?[]> _matchChatChannels;
+        private readonly AsyncRwLockWrapper<InMemoryMatchChannel?[]> _matchChatChannels;
         private readonly AsyncRwLockWrapper<InMemoryMatchSetupObservable?[]> _matchSetupObservables;
         private readonly AsyncRwLockWrapper<InMemoryMatchGameObservable?[]> _matchGameObservables;
         private readonly AsyncRwLockWrapper<Dictionary<uint, JoinedPlayerData>> _joinedPlayers;
+
+        private LoggingManager _loggingManager;
         
-        public InMemoryLobbyProvider()
+        public InMemoryLobbyProvider(LoggingManager loggingManager)
         {
+            _loggingManager = loggingManager;
+            
             _matches = new AsyncRwLockWrapper<MatchState?[]>(new MatchState?[MatchesAvailable]);
             _joinedPlayers = new AsyncRwLockWrapper<Dictionary<uint, JoinedPlayerData>>(new());
             
@@ -45,7 +100,7 @@ namespace Oldsu.Bancho.Providers.InMemory
             _matchGameObservables =
                 new AsyncRwLockWrapper<InMemoryMatchGameObservable?[]>(new InMemoryMatchGameObservable[MatchesAvailable]);
 
-            _matchChatChannels = new AsyncRwLockWrapper<InMemoryChannel?[]>(new InMemoryChannel[MatchesAvailable]);
+            _matchChatChannels = new AsyncRwLockWrapper<InMemoryMatchChannel?[]>(new InMemoryMatchChannel[MatchesAvailable]);
 
             _lobbyChatChannel = new InMemoryChannel(new Channel
             {
@@ -54,7 +109,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                 AutoJoin = false,
                 CanWrite = true,
                 RequiredPrivileges = Privileges.Normal
-            });
+            }, _loggingManager);
         }
 
         class JoinedPlayerData
@@ -73,6 +128,7 @@ namespace Oldsu.Bancho.Providers.InMemory
             
             public bool CanSkip { get; set; }
             public bool CanLoad { get; set; }
+            public bool CanComplete { get; set; }
         }
         
         private async Task NotifyMatchUpdate(MatchState data)
@@ -232,6 +288,7 @@ namespace Oldsu.Bancho.Providers.InMemory
         public async Task<MatchState?> CreateMatch(uint userId, MatchSettings matchSettings)
         {
             MatchState match;
+            string? matchNotCreatedReason = null;
             
             using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
@@ -246,7 +303,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         continue;
 
                     match = matchesLock.Value[matchId] = new MatchState((int) matchId, (int) userId, matchSettings);
-                    _ = match.Join((int) userId, matchSettings.GamePassword!);
+                    _ = match.Join((int) userId, matchSettings.GamePassword!, out _);
 
                     await _joinedPlayers.Upgrade(joinedPlayersLock);
 
@@ -256,28 +313,39 @@ namespace Oldsu.Bancho.Providers.InMemory
                         observables[matchId] = new InMemoryMatchSetupObservable());
                     
                     await _matchChatChannels.WriteAsync(channels =>
-                        channels[matchId] = new InMemoryChannel(new Channel
-                        {
-                            Tag = "#multiplayer",
-                            Topic = "Multiplayer room discussion.",
-                            AutoJoin = true,
-                            CanWrite = true,
-                            RequiredPrivileges = Privileges.Normal
-                        }));
+                        channels[matchId] = new InMemoryMatchChannel(matchId, _loggingManager));
                     
                     match = (match.Clone() as MatchState)!;
                     
                     goto MatchCreated;
                 }
 
+                matchNotCreatedReason = "Too many matches.";
                 goto MatchNotCreated;
             }
             
             MatchCreated:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match accept creation.", 
+                null, 
+                new
+                {
+                    UserID = userId,
+                    match.MatchID,
+                });
+            
             await NotifyMatchUpdate(match);
             return match;
             
             MatchNotCreated:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match reject creation.", 
+                null, 
+                new
+                {
+                    UserID = userId,
+                    Reason = matchNotCreatedReason
+                });
             return null;
         }
 
@@ -288,6 +356,7 @@ namespace Oldsu.Bancho.Providers.InMemory
         public async Task<MatchState?> JoinMatch(uint userId, uint matchId, string password)
         {
             MatchState match;
+            string? notJoinedReason;
             
             using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
@@ -307,15 +376,39 @@ namespace Oldsu.Bancho.Providers.InMemory
 
                 match = matchesLock.Value[matchId]!;
 
-                var newSlot = match!.Join((int) userId, password);
+                var newSlot = match!.Join((int) userId, password, out notJoinedReason);
                 if (newSlot is null)
-                    return null;
+                    goto PlayerNotJoined;
 
                 await _joinedPlayers.Upgrade(joinedPlayersLock);
 
                 joinedPlayersLock.Value.Add(userId, new JoinedPlayerData(matchId));
-            }
 
+                match = (match.Clone() as MatchState)!;
+                goto PlayerJoined;
+            }
+            
+            PlayerNotJoined:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match reject player.", 
+                null, 
+                new
+                {
+                    UserID = userId,
+                    MatchID = matchId,
+                    Reason = notJoinedReason
+                });
+
+            PlayerJoined:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match accept player.", 
+                null, 
+                new
+                {
+                    UserID = userId,                    
+                    MatchID = matchId,
+                });
+            
             await NotifyMatchUpdate(match);
             return match;
         }
@@ -355,15 +448,34 @@ namespace Oldsu.Bancho.Providers.InMemory
             }
 
             MatchDisbanded:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match disbanded.", 
+                null, 
+                new
+                {
+                    UserID = userId,
+                    match.MatchID
+                });
+            
             await NotifyMatchDisband(playerData.MatchID);
             return true;
             
             PlayerLeft:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "User left from match.", 
+                null, 
+                new
+                {
+                    UserID = userId,
+                    match.MatchID
+                });
+            
             await NotifyMatchUpdate(match);
             return true;
         }
         
-        private async Task ExecuteOperationOnCurrentMatch(uint userId, Func<MatchState, bool> fn)
+        private async Task ExecuteOperationOnCurrentMatch(uint userId, 
+            Func<MatchState, bool> fn, Func<MatchState, Task>? notifyExt = null)
         {
             MatchState match;
             
@@ -383,6 +495,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                     if (notify)
                     {
                         match = (match.Clone() as MatchState)!;
+                        
                         goto DoNotify;
                     }
                     
@@ -391,10 +504,12 @@ namespace Oldsu.Bancho.Providers.InMemory
             }
 
             DoNotify:
+            await (notifyExt?.Invoke(match) ?? Task.CompletedTask);
             await NotifyMatchUpdate(match);
             
             DontNotify: ;
         }
+
 
         public async Task<uint> MatchTransferHost(uint userId, uint newHostSlot)
         {
@@ -407,7 +522,18 @@ namespace Oldsu.Bancho.Providers.InMemory
                     newHostID = (uint)match.HostID;
                     
                     return true;
-                });
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match host transferred",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            OldHost = userId,
+                            NewHost = newHostSlot
+                        }
+                    ));
 
             return newHostID;
         }
@@ -418,7 +544,17 @@ namespace Oldsu.Bancho.Providers.InMemory
                 {
                     match.Ready(userId);
                     return true;
-                });
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match set player ready",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            UserID = userId
+                        }
+                    ));
 
         public Task MatchGotBeatmap(uint userId) =>
             ExecuteOperationOnCurrentMatch(userId, 
@@ -426,7 +562,17 @@ namespace Oldsu.Bancho.Providers.InMemory
                 {
                     match.GotBeatmap(userId);
                     return true;
-                });
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match set player got beatmap",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            UserID = userId
+                        }
+                    ));
 
         public Task MatchSetUnready(uint userId) => 
             ExecuteOperationOnCurrentMatch(userId, 
@@ -434,11 +580,32 @@ namespace Oldsu.Bancho.Providers.InMemory
                 {
                     match.Unready(userId);
                     return true;
-                });
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match set player unready.",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            UserID = userId
+                        }
+                    ));
         
         public Task MatchMoveSlot(uint userId, uint newSlot) => 
             ExecuteOperationOnCurrentMatch(userId, 
-                match => match.MoveSlot(userId, newSlot));
+                match => match.MoveSlot(userId, newSlot),
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match move player to another slot.",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            UserID = userId,
+                            NewSlot = newSlot
+                        }
+                    ));
         
         public Task MatchChangeSettings(uint userId, MatchSettings matchSettings) => 
             ExecuteOperationOnCurrentMatch(userId, 
@@ -446,28 +613,71 @@ namespace Oldsu.Bancho.Providers.InMemory
                 {
                     match.ChangeSettings(userId, matchSettings);
                     return true;
-                });
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match set player unready.",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            MatchSettings = match.Settings
+                        }
+                    ));
 
         public Task MatchChangeTeam(uint userId)  =>
-            ExecuteOperationOnCurrentMatch(userId, match =>
-            {
-                match.ChangeTeam(userId);
-                return true;
-            });
+            ExecuteOperationOnCurrentMatch(userId, 
+                match =>
+                {
+                    match.ChangeTeam(userId);
+                    return true;
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match change player team.",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            UserID = userId
+                        }
+                    ));
         
         public Task MatchNoBeatmap(uint userId) =>
-            ExecuteOperationOnCurrentMatch(userId, match =>
-            {
-                match.NoBeatmap(userId);
-                return true;
-            });
+            ExecuteOperationOnCurrentMatch(userId, 
+                match =>
+                {
+                    match.NoBeatmap(userId);
+                    return true;
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match set player no beatmap.",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            UserID = userId
+                        }
+                    ));
 
         public Task MatchChangeMods(uint userId, short mods) =>
-            ExecuteOperationOnCurrentMatch(userId, match =>
-            {
-                 match.ChangeMods(userId, mods);
-                 return true;
-            });
+            ExecuteOperationOnCurrentMatch(userId, 
+                match =>
+                {   
+                     match.ChangeMods(userId, mods);
+                     return true;
+                },
+                notifyExt: match => 
+                    _loggingManager.LogInfo<ILobbyProvider>(
+                        "Match change mods.",
+                        null,
+                        new
+                        {
+                            match.MatchID,
+                            Mods = mods
+                        }
+                    ));
 
         public async Task<uint?> MatchLockSlot(uint userId, uint slot)
         {
@@ -497,6 +707,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                     if (notify)
                     {
                         match = (match.Clone() as MatchState)!;
+                        
                         goto DoNotify;
                     }   
                     
@@ -505,6 +716,15 @@ namespace Oldsu.Bancho.Providers.InMemory
             }
 
             DoNotify:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match lock slot.", 
+                null, 
+                new
+                {
+                    match.MatchID,
+                    Slot = slot
+                });
+            
             await NotifyMatchUpdate(match);
             
             DontNotify: ;
@@ -540,6 +760,14 @@ namespace Oldsu.Bancho.Providers.InMemory
                 
                 await _matchGameObservables.WriteAsync(observables =>
                     observables[playerData.MatchID] = new InMemoryMatchGameObservable());
+                
+                await _loggingManager.LogInfo<ILobbyProvider>(
+                    "Match started.", 
+                    null, 
+                    new
+                    {
+                        match.MatchID
+                    });
                 
                 match = (match.Clone() as MatchState)!;
             }
@@ -584,6 +812,9 @@ namespace Oldsu.Bancho.Providers.InMemory
                 if (!playerData.Playing)
                     throw new UserNotPlayingException();
 
+                if (!playerData.CanSkip)
+                    throw new UserAlreadySkippedException();
+                
                 using var matchesLock = await _matches.AcquireWriteLockGuard();
                 
                 playerData.CanSkip = false;
@@ -600,6 +831,14 @@ namespace Oldsu.Bancho.Providers.InMemory
             }
             
             DoNotifySkip:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match skipped initial pause.", 
+                null, 
+                new
+                {
+                    MatchID = matchId
+                });
+            
             await NotifyMatchSkip(matchId);
             
             DontNotifySkip: ;
@@ -617,6 +856,9 @@ namespace Oldsu.Bancho.Providers.InMemory
                 if (!playerData.Playing)
                     throw new UserNotPlayingException();
 
+                if (!playerData.CanLoad)
+                    throw new UserAlreadyLoadedException();
+                
                 using var matchesLock = await _matches.AcquireWriteLockGuard();
                 
                 playerData.CanLoad = false;
@@ -633,6 +875,14 @@ namespace Oldsu.Bancho.Providers.InMemory
             }
             
             DoNotifyLoad:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match loaded.", 
+                null, 
+                new
+                {
+                    MatchID = matchId
+                });
+            
             await NotifyMatchLoad(matchId);
             
             DontNotifyLoad: ;
@@ -643,6 +893,8 @@ namespace Oldsu.Bancho.Providers.InMemory
             uint matchId;
             MatchState match;
 
+            var finalScoreFrames = new List<ScoreFrame>();
+
             using (var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard())
             {
                 if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
@@ -650,8 +902,13 @@ namespace Oldsu.Bancho.Providers.InMemory
 
                 if (!playerData.Playing)
                     throw new UserNotPlayingException();
+                
+                if (!playerData.CanComplete)
+                    throw new UserAlreadyCompletedException();
 
                 using var matchesLock = await _matches.AcquireWriteLockGuard();
+                
+                playerData.CanComplete = false;
                 
                 match = matchesLock.Value[playerData.MatchID]!;
                 match.Complete(userId);
@@ -665,6 +922,11 @@ namespace Oldsu.Bancho.Providers.InMemory
                         playerData = joinedPlayersLock.Value[user];
                     
                         playerData.Playing = false;
+
+                        playerData.ScoreFrame.LockAsync(scoreFrame =>
+                            finalScoreFrames.Add(scoreFrame!)
+                        );
+                        
                         playerData.ScoreFrame.SetValueAsync(null);
                     });
                         
@@ -679,6 +941,15 @@ namespace Oldsu.Bancho.Providers.InMemory
             }
             
             DoNotifyComplete:
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Match completed.", 
+                null, 
+                new
+                {
+                    MatchID = matchId,
+                    FinalScoreFrames = finalScoreFrames
+                });
+            
             await NotifyMatchUpdate(match);
             await NotifyMatchComplete(matchId);
             return true;
@@ -701,7 +972,6 @@ namespace Oldsu.Bancho.Providers.InMemory
         public Task SendMessageToLobby(string username, string contents) =>
             _lobbyChatChannel.SendMessage(username, contents);
 
-        
         public async Task<bool> IsPlayerInMatch(uint userId)
         {
             using var joinedPlayersLock = await _joinedPlayers.AcquireReadLockGuard();

@@ -3,18 +3,59 @@ using System.Linq;
 using System.Threading.Tasks;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Enums;
+using Oldsu.Logging;
 using Oldsu.Types;
 using Oldsu.Utils.Threading;
 
 namespace Oldsu.Bancho.Providers.InMemory
 {
+    
+    public class InMemoryPrivateChannel : InMemoryObservable<ProviderEvent>, IChatChannel
+    {
+        private string _username;
+        
+        public Channel ChannelInfo =>
+            new Channel
+            {
+                Tag = _username,
+                Topic = string.Empty,
+                AutoJoin = false,
+                CanWrite = true,
+                RequiredPrivileges = Privileges.Normal
+            };
+
+        public InMemoryPrivateChannel(string username)
+        {
+            _username = username;
+        }
+        
+        public async Task SendMessage(string username, string content)
+        {
+            await Notify(new ProviderEvent
+            {
+                DataType = ProviderEventType.BanchoPacket,
+                ProviderType = ProviderType.Chat,
+                Data = new BanchoPacket(new SendMessage
+                {
+                    Contents = content,
+                    Sender = username,
+                    Target = ChannelInfo!.Tag
+                })
+            });
+        }
+    } 
+
+    
     public class InMemoryChannel : InMemoryObservable<ProviderEvent>, IChatChannel
     {
         public Channel ChannelInfo { get; }
+
+        private LoggingManager _loggingManager;
         
-        public InMemoryChannel(Channel channelInfo)
+        public InMemoryChannel(Channel channelInfo, LoggingManager loggingManager)
         {
             ChannelInfo = channelInfo;
+            _loggingManager = loggingManager;
         }
         
         public async Task SendMessage(string username, string content)
@@ -22,6 +63,16 @@ namespace Oldsu.Bancho.Providers.InMemory
             if (!ChannelInfo.CanWrite)
                 return;
 
+            await _loggingManager.LogInfo<IChatChannel>(
+                "Message received.", 
+                null, 
+                new
+                {
+                    Sender = username,
+                    Content = content,
+                    Channel = ChannelInfo.Tag
+                });
+                
             await Notify(new ProviderEvent
             {
                 DataType = ProviderEventType.BanchoPacket,
@@ -39,10 +90,14 @@ namespace Oldsu.Bancho.Providers.InMemory
     public class InMemoryChatProvider : InMemoryObservable<ProviderEvent>, IChatProvider
     {
         private AsyncRwLockWrapper<Dictionary<string, InMemoryChannel>> _channels;
-        private AsyncRwLockWrapper<Dictionary<string, InMemoryChannel>> _userChannels;
+        private AsyncRwLockWrapper<Dictionary<string, InMemoryPrivateChannel>> _userChannels;
 
-        public InMemoryChatProvider()
+        private LoggingManager _loggingManager;
+        
+        public InMemoryChatProvider(LoggingManager loggingManager)
         {
+            _loggingManager = loggingManager;
+            
             _channels = new AsyncRwLockWrapper<Dictionary<string, InMemoryChannel>>(
                 new Dictionary<string, InMemoryChannel>
                 {
@@ -55,8 +110,9 @@ namespace Oldsu.Bancho.Providers.InMemory
                                 Topic = "Discussion in English.", 
                                 AutoJoin = true, 
                                 CanWrite = true, 
-                                RequiredPrivileges = Privileges.Normal
-                            })
+                                RequiredPrivileges = Privileges.Normal,
+                            },
+                            _loggingManager)
                     },
                     {
                         "#announce",
@@ -68,22 +124,16 @@ namespace Oldsu.Bancho.Providers.InMemory
                                 AutoJoin = true, 
                                 CanWrite = false, 
                                 RequiredPrivileges = Privileges.Normal
-                            })
+                            },
+                            _loggingManager)
                     }
                 });
             
-            _userChannels = new AsyncRwLockWrapper<Dictionary<string, InMemoryChannel>>(new ());
+            _userChannels = new AsyncRwLockWrapper<Dictionary<string, InMemoryPrivateChannel>>(new ());
         }
         
         public Task RegisterUser(string username) =>
-            _userChannels.WriteAsync(channels => channels.Add(username, new InMemoryChannel(new Channel
-            {
-                Tag = username,
-                Topic = string.Empty,
-                AutoJoin = false,
-                CanWrite = true,
-                RequiredPrivileges = Privileges.Normal
-            })));
+            _userChannels.WriteAsync(channels => channels.Add(username, new InMemoryPrivateChannel(username)));
 
         public Task<Channel[]> GetAvailableChannelInfo(Privileges privileges) =>
             _channels.ReadAsync(channels => channels
@@ -98,7 +148,7 @@ namespace Oldsu.Bancho.Providers.InMemory
 
         public async Task RegisterChannel(Channel channel)
         {
-            await _channels.WriteAsync(channels => channels.Add(channel.Tag, new InMemoryChannel(channel)));
+            await _channels.WriteAsync(channels => channels.Add(channel.Tag, new InMemoryChannel(channel, _loggingManager)));
             
             await Notify(new ProviderEvent
             {

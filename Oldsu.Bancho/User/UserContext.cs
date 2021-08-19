@@ -7,6 +7,7 @@ using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Bancho.Providers;
 using Oldsu.Enums;
+using Oldsu.Logging;
 using Oldsu.Types;
 using Oldsu.Utils;
 using Action = Oldsu.Enums.Action;
@@ -185,34 +186,29 @@ namespace Oldsu.Bancho.User
         public uint UserID { get; }
         public string Username { get; }
         public Privileges Privileges { get; }
+
+        public DependencyManager Dependencies { get; }
+        public LoggingManager Logger { get; }
         
-        public IUserStateProvider UserStateProvider { get; }
-        public IStreamingProvider StreamingProvider { get; }
-        public ILobbyProvider LobbyProvider { get; }
-        public IUserRequestProvider UserRequestProvider { get; }
-        public IChatProvider ChatProvider { get; }
+        // public IUserStateProvider UserStateProvider { get; }
+        // public IStreamingProvider StreamingProvider { get; }
+        // public ILobbyProvider LobbyProvider { get; }
+        // public IUserRequestProvider UserRequestProvider { get; }
+        // public IChatProvider ChatProvider { get; }
         
         public UserSubscriptionManager SubscriptionManager { get; }
-        
-        public UserContext(
-            uint userId, string username, Privileges privileges,
-            IUserStateProvider userStateProvider, 
-            IStreamingProvider streamingProvider,
-            ILobbyProvider lobbyProvider,
-            IUserRequestProvider userRequestProvider,
-            IChatProvider chatProvider)
+
+        public UserContext(uint userId, string username, Privileges privileges, 
+            DependencyManager dependencies, LoggingManager loggingManager)
         {
             UserID = userId;
             Username = username;
             Privileges = privileges;
 
             SubscriptionManager = new UserSubscriptionManager();
-            UserStateProvider = userStateProvider;
-            StreamingProvider = streamingProvider;
-            LobbyProvider = lobbyProvider;
-            UserRequestProvider = userRequestProvider;
-            ChatProvider = chatProvider;
 
+            Dependencies = dependencies;
+            Logger = loggingManager;
             _waitDisconnectionSource = new TaskCompletionSource();
         }
 
@@ -221,7 +217,7 @@ namespace Oldsu.Bancho.User
             switch (request)
             {
                 case UserRequestTypes.QuitMatch:
-                    await LobbyProvider.TryLeaveMatch(UserID);
+                    await Dependencies.Get<ILobbyProvider>().TryLeaveMatch(UserID);
 
                     await LeaveChannel("#multiplayer");
 
@@ -241,7 +237,7 @@ namespace Oldsu.Bancho.User
                     
                 case UserRequestTypes.SubscribeToMatchSetup:
                     await SubscriptionManager.SubscribeToMatchSetupUpdates(
-                        (await LobbyProvider.GetMatchSetupObservable(UserID))!);
+                        (await Dependencies.Get<ILobbyProvider>().GetMatchSetupObservable(UserID))!);
 
                     break;
                 default:
@@ -287,18 +283,22 @@ namespace Oldsu.Bancho.User
 
         public async Task InitialRegistration(UserInfo userInfo, Presence presence, Channel[] autojoinChannels)
         {
-            await SubscriptionManager.SubscribeToUserStateProvider(UserStateProvider);
-            await StreamingProvider.RegisterStreamer(UserID);
+            var streamingProvider = Dependencies.Get<IStreamingProvider>();
+            var chatProvider = Dependencies.Get<IChatProvider>();
+            var userStateProvider = Dependencies.Get<IUserStateProvider>();
+            var userRequestProvider = Dependencies.Get<IUserRequestProvider>();
+            
+            await SubscriptionManager.SubscribeToUserStateProvider(userStateProvider);
 
-            await SubscriptionManager.SubscribeToStreamerObservable(
-                (await StreamingProvider.GetStreamerObserver(UserID))!);
-
-            await SubscriptionManager.SubscribeToChat(ChatProvider);
-            await ChatProvider.RegisterUser(Username);
+            await streamingProvider.RegisterStreamer(UserID);
+            await SubscriptionManager.SubscribeToStreamerObservable((await streamingProvider.GetStreamerObserver(UserID))!);
+            
+            await SubscriptionManager.SubscribeToChat(chatProvider);
+            await chatProvider.RegisterUser(Username);
 
             await using Database database = new Database();
             
-            await UserStateProvider.RegisterUserAsync(userInfo!.UserID,
+            await userStateProvider.RegisterUserAsync(userInfo!.UserID,
                 new UserData()
                 {
                     Activity = new Activity {Action = Action.Idle},
@@ -307,16 +307,16 @@ namespace Oldsu.Bancho.User
                     UserInfo = userInfo!
                 });
             
-            await UserRequestProvider.RegisterUser(UserID);
+            await userRequestProvider.RegisterUser(UserID);
             
             await SubscriptionManager.SubscribeToUserRequests(
-                (await UserRequestProvider.GetObservable(UserID))!);
+                (await userRequestProvider.GetObservable(UserID))!);
             
             await SubscriptionManager.SubscribeToChannel(
-                (await ChatProvider.GetUserChannel(Username))!);
+                (await chatProvider.GetUserChannel(Username))!);
 
             foreach (var channel in autojoinChannels)
-                await JoinChannel((await ChatProvider.GetChannel(channel.Tag, Privileges))!);
+                await JoinChannel((await chatProvider.GetChannel(channel.Tag, Privileges))!);
         }
         
 
@@ -329,11 +329,17 @@ namespace Oldsu.Bancho.User
         
         public async ValueTask DisposeAsync()
         {
-            await ChatProvider.UnregisterUser(Username);
-            await UserRequestProvider.UnregisterUser(UserID);
-            await UserStateProvider.UnregisterUserAsync(UserID);
-            await StreamingProvider.UnregisterStreamer(UserID);
-            await LobbyProvider.TryLeaveMatch(UserID);
+            var streamingProvider = Dependencies.Get<IStreamingProvider>();
+            var chatProvider = Dependencies.Get<IChatProvider>();
+            var userStateProvider = Dependencies.Get<IUserStateProvider>();
+            var userRequestProvider = Dependencies.Get<IUserRequestProvider>();
+            var lobbyProvider = Dependencies.Get<ILobbyProvider>();
+            
+            await chatProvider.UnregisterUser(Username);
+            await userRequestProvider.UnregisterUser(UserID);
+            await userStateProvider.UnregisterUserAsync(UserID);
+            await streamingProvider.UnregisterStreamer(UserID);
+            await lobbyProvider.TryLeaveMatch(UserID);
             await SubscriptionManager.DisposeAsync();
             
             _waitDisconnectionSource.SetResult();

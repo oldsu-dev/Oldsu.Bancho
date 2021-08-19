@@ -100,15 +100,23 @@ namespace Oldsu.Bancho.Multiplayer
                 MatchSlots[i] = new MatchSlot();
         }
 
-        public uint? Join(int userId, string password)
+        public uint? Join(int userId, string password, out string? notJoinedReason)
         {
-            if (password != Settings.GamePassword)
-                return null;
+            notJoinedReason = null;
             
+            if (password != Settings.GamePassword)
+            {
+                notJoinedReason = "Password mismatch.";
+                return null;
+            }
+
             var newSlotIndex = Array.FindIndex(MatchSlots, slot => slot.UserID == -1 
                                                                    && slot.SlotStatus != SlotStatus.Locked);
             if (newSlotIndex == -1)
+            {
+                notJoinedReason = "Match full.";
                 return null;
+            }
 
             MatchSlots[newSlotIndex].SetUser(userId);
             return (uint)newSlotIndex;

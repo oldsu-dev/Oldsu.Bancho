@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -10,8 +11,11 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            if ((await userContext.LobbyProvider.MatchLockSlot(userContext.UserID, SlotID)) is { } kickUser)
-                await userContext.UserRequestProvider.QuitMatch(kickUser);
+            var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
+            var userRequestProvider = userContext.Dependencies.Get<IUserRequestProvider>();
+            
+            if ((await lobbyProvider.MatchLockSlot(userContext.UserID, SlotID)) is { } kickUser)
+                await userRequestProvider.QuitMatch(kickUser);
         }
     }
 }

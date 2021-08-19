@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -14,7 +15,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
             await using var database = new Database();
             var stats = await database.GetStatsWithRankAsync(userContext.UserID, 0);
             
-            await userContext.UserStateProvider.SetStatsAsync(userContext.UserID, stats);
+            await userContext.Dependencies.Get<IUserStateProvider>().SetStatsAsync(userContext.UserID, stats);
         }
     }
 }

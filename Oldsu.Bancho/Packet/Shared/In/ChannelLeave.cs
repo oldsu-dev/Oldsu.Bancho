@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -30,10 +31,13 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     }));
                     break;
                 default:
-                    var channel = await userContext.ChatProvider.GetChannel(ChannelName, userContext.Privileges);
+                {
+                    var chatProvider = userContext.Dependencies.Get<IChatProvider>();
+                    
+                    var channel = await chatProvider.GetChannel(ChannelName, userContext.Privileges);
                     if (channel is not null)
                         await userContext.LeaveChannel(channel);
-                    break;
+                } break;
             }
         }
     }

@@ -1,5 +1,6 @@
 ﻿using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 using Oldsu.Types;
 
@@ -10,6 +11,6 @@ namespace Oldsu.Bancho.Packet.Shared.In
         public byte[] Frames { get; init; }
 
         public Task Handle(UserContext userContext, Connection _) =>
-            userContext.StreamingProvider.PushFrames(userContext.UserID, Frames);
+            userContext.Dependencies.Get<IStreamingProvider>().PushFrames(userContext.UserID, Frames);
     }
 }

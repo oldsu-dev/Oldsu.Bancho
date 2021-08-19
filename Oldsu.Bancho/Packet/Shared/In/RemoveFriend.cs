@@ -15,7 +15,8 @@ namespace Oldsu.Bancho.Packet.Shared.In {
         public async Task Handle(UserContext userContext, Connection connection) {
             await using var database = new Database();
 
-            await database.Database.ExecuteSqlRawAsync("DELETE FROM `friends` WHERE UserID={0} AND FriendUserID={1}", userContext.UserID, this._userId);
+            await database.Database.ExecuteSqlRawAsync("DELETE FROM `friends` WHERE UserID={0} AND FriendUserID={1}", 
+                userContext.UserID, this._userId);
         }
     }
 }

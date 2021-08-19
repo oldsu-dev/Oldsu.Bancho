@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Providers;
 using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -9,6 +10,6 @@ namespace Oldsu.Bancho.Packet.Shared.In
         public uint SlotID { get; set; }
 
         public Task Handle(UserContext userContext, Connection connection) =>
-            userContext.LobbyProvider.MatchMoveSlot(userContext.UserID, SlotID);
+            userContext.Dependencies.Get<ILobbyProvider>().MatchMoveSlot(userContext.UserID, SlotID);
     }
 }
