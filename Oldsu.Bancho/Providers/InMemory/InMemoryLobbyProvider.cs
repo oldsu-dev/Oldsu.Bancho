@@ -38,12 +38,13 @@ namespace Oldsu.Bancho.Providers.InMemory
         public uint MatchID { get; }
 
         private LoggingManager _loggingManager;
+        private Guid _uuid;
         
-        
-        public InMemoryMatchChannel(uint matchId, LoggingManager loggingManager)
+        public InMemoryMatchChannel(uint matchId, Guid uuid, LoggingManager loggingManager)
         {
             _loggingManager = loggingManager;
             MatchID = matchId;
+            _uuid = uuid;
         }
         
         public async Task SendMessage(string username, string content)
@@ -56,7 +57,8 @@ namespace Oldsu.Bancho.Providers.InMemory
                     Sender = username,
                     Content = content,
                     Channel = ChannelInfo.Tag,
-                    MatchID 
+                    MatchID,
+                    MatchUUID = _uuid
                 });
                 
             await Notify(new ProviderEvent
@@ -313,7 +315,7 @@ namespace Oldsu.Bancho.Providers.InMemory
                         observables[matchId] = new InMemoryMatchSetupObservable());
                     
                     await _matchChatChannels.WriteAsync(channels =>
-                        channels[matchId] = new InMemoryMatchChannel(matchId, _loggingManager));
+                        channels[matchId] = new InMemoryMatchChannel(matchId, match.UUID, _loggingManager));
                     
                     match = (match.Clone() as MatchState)!;
                     
