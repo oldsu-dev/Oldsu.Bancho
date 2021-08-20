@@ -20,6 +20,23 @@ namespace Oldsu.Bancho.Connections
         public bool PingTimeout => DateTime.Now > _pingTimeoutWindow;
 
         public event EventHandler? Disconnected;
+        
+        protected TaskCompletionSource? LockStateHolder;
+
+        protected Task WaitStateLock()
+        {
+            var lockStateHolder = LockStateHolder;
+            
+            return lockStateHolder?.Task ?? Task.CompletedTask;
+        }
+
+        public void LockState() => LockStateHolder = new TaskCompletionSource();
+        
+        public void UnlockState()
+        {
+             LockStateHolder!.SetResult();
+             LockStateHolder = null;
+        }
 
         public Version Version { get;  set; } 
         public Guid Guid { get; }
@@ -45,7 +62,7 @@ namespace Oldsu.Bancho.Connections
 
         private readonly SemaphoreSlim _sendPacketSemaphore;
         
-        public void SendPacket(BanchoPacket packet) => Task.Run(() => SendPacketAsync(packet));
+        public Task SendPacketAsync(BanchoPacket packet) => Task.Factory.StartNew(() => InternalSendPacket(packet));
         
         private readonly TaskCompletionSource _sendingCompletionSource;
 
@@ -63,14 +80,16 @@ namespace Oldsu.Bancho.Connections
             _sendingCompleted = true;
             CheckCompletionState();
         }
-
-        public async Task SendPacketAsync(BanchoPacket packet)
+        
+        public async Task InternalSendPacket(BanchoPacket packet)
         {
+            await _sendPacketSemaphore.WaitAsync();
+            await WaitStateLock();
+            
             if (_sendingCompleted)
                 return;
 
             Interlocked.Increment(ref _waitingPackets);
-            await _sendPacketSemaphore.WaitAsync();
 
             try
             {
@@ -117,8 +136,10 @@ namespace Oldsu.Bancho.Connections
 
         public void ForceDisconnect() => HandleDisconnection();
 
-        private void HandleDisconnection()
+        private async void HandleDisconnection()
         {
+            await WaitStateLock();
+            
             Disconnected?.Invoke(this, EventArgs.Empty);
             ClearEventSubscriptions();
         }

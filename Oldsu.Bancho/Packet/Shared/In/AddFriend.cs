@@ -11,7 +11,8 @@ namespace Oldsu.Bancho.Packet.Shared.In {
         public async Task Handle(UserContext userContext, Connection connection) {
             await using var database = new Database();
 
-            await database.Database.ExecuteSqlRawAsync("INSERT INTO `friends` (UserID, FriendUserID) VALUES ({0}, {1})", userContext.UserID, this._userId);
+            await database.Database.ExecuteSqlRawAsync("INSERT INTO `friends` (UserID, FriendUserID) VALUES ({0}, {1})", 
+                userContext.UserID, this._userId);
         }
     }
 }

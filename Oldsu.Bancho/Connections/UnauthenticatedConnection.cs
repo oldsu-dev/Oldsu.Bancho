@@ -19,14 +19,26 @@ namespace Oldsu.Bancho.Connections
             RawConnection.OnMessage += HandleMessage;
         }
         
-        private void HandleBinary(byte[] data)
+        private async void HandleBinary(byte[] data)
         {
+            await WaitStateLock();
             // UnauthenticatedConnection can't receive data messages 
             Disconnect();
         }
+
+        private volatile bool _loginReceived;
         
-        private void HandleMessage(string message) =>
+        private void HandleMessage(string message)
+        {
+            WaitStateLock();
+            
+            if (_loginReceived)
+                return;
+
+            _loginReceived = true;
+            
             Login?.Invoke(this, message);
+        }
 
         protected override void ClearEventSubscriptions()
         {
@@ -40,7 +52,7 @@ namespace Oldsu.Bancho.Connections
         {
             ClearEventSubscriptions();
 
-            var authenticatedConnection = new AuthenticatedConnection(Guid, RawConnection);
+            var authenticatedConnection = new AuthenticatedConnection(Guid, RawConnection, LockStateHolder);
             authenticatedConnection.Version = version;
 
             return authenticatedConnection;

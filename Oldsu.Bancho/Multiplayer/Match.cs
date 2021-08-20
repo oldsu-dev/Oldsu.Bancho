@@ -171,6 +171,9 @@ namespace Oldsu.Bancho.Multiplayer
             var currentSlot = GetSlotByPlayerID(requesterUserId);
             var newSlot = MatchSlots[newSlotId];
 
+            if (newSlot.SlotStatus == SlotStatus.Locked)
+                return false;
+            
             if (currentSlot.UserID == newSlot.UserID)
                 return false;
             

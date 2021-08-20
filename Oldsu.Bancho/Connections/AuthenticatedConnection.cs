@@ -61,7 +61,7 @@ namespace Oldsu.Bancho.Connections
         
         public void PacketInbound(BanchoPacket packet)
         {
-            _connection.SendPacket(packet);
+            _connection.SendPacketAsync(packet);
         }
 
         public async void UserRequestInbound(UserRequestTypes request)
@@ -95,22 +95,25 @@ namespace Oldsu.Bancho.Connections
 
     public class AuthenticatedConnection : Connection
     {
-        
         public const int PingMaxInterval = 35_000;
 
         public event EventHandler<ISharedPacketIn>? PacketReceived;
         
-        public AuthenticatedConnection(Guid guid, IWebSocketConnection webSocketConnection) 
+        internal AuthenticatedConnection(Guid guid, IWebSocketConnection webSocketConnection, TaskCompletionSource? lockStateHolder) 
             : base(guid, webSocketConnection, PingMaxInterval)
         {
             RawConnection.OnBinary += HandleBinary;
             RawConnection.OnMessage += HandleMessage;
+
+            LockStateHolder = lockStateHolder;
         }
 
         public Task SendHandshake(IHandshake handshake) => handshake.Execute(this);
         
-        private void HandleBinary(byte[] data)
+        private async void HandleBinary(byte[] data)
         {
+            await WaitStateLock();
+            
             ResetPing(PingMaxInterval);
             
             var obj = BanchoSerializer.Deserialize(data, this.Version);
@@ -124,8 +127,9 @@ namespace Oldsu.Bancho.Connections
             PacketReceived?.Invoke(this, packet);
         }
 
-        private void HandleMessage(string message)
+        private async void HandleMessage(string message)
         {
+            await WaitStateLock();
             // UnauthenticatedConnection can't receive text messages 
             Disconnect();
         }

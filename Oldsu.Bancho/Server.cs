@@ -203,12 +203,17 @@ namespace Oldsu.Bancho
 
         private async void HandleLogin(object? sender, string authString)
         {
+            UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
+            connection.LockState();
+
+            if (connection.IsZombie)
+                return;
+            
             await _connectionSemaphore.WaitAsync();
+            await _connections.WriteAsync(connections => connections.Remove(connection.Guid));
             
             try
             {
-                UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
-
                 await _loggingManager.LogInfo<Server>("Client connected.", null, new
                 {
                     connection.IP,
@@ -248,8 +253,10 @@ namespace Oldsu.Bancho
 
                 await disconnectionTask;
 
-                var result = await UpgradeConnection(connection, version, userInfo!, presence);
-                await _authenticatedConnections.LockAsync(connections => connections.Add(userInfo!.UserID, result));
+                var (upgradedConnection, context) = await UpgradeConnection(connection, version, userInfo!, presence);
+                await _authenticatedConnections.LockAsync(connections => connections.Add(userInfo!.UserID, (upgradedConnection, context)));
+                
+                upgradedConnection.UnlockState();
             }
             finally
             {
@@ -273,7 +280,7 @@ namespace Oldsu.Bancho
 
             var upgradedConnection = await connection.Upgrade(version);
 
-            connectionsLock.Value[upgradedConnection.Guid] = upgradedConnection;
+            connectionsLock.Value.Add(upgradedConnection.Guid, upgradedConnection);
             
             var handler = new ConnectionEventHandler(_loggingManager, userContext, upgradedConnection);
 
@@ -304,8 +311,6 @@ namespace Oldsu.Bancho
 
             await upgradedConnection.SendPacketAsync(
                 new BanchoPacket(new Login() {LoginStatus = (int) userInfo.UserID}));
-
-            await userContext.InitialRegistration(userInfo, presence, autojoinChannels);            
             
             await upgradedConnection.SendHandshake(
                 new CommonHandshake(
@@ -315,6 +320,8 @@ namespace Oldsu.Bancho
                     availableChannels,
                     friendships
                 ));
+            
+            await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
 
             return (upgradedConnection, userContext);
         }

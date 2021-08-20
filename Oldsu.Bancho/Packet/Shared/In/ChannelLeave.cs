@@ -12,7 +12,6 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public async Task Handle(UserContext userContext, Connection connection)
         {
-            
             switch (ChannelName)
             {
                 case "#multiplayer":
