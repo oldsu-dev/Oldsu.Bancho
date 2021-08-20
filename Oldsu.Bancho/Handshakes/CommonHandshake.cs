@@ -12,7 +12,6 @@ namespace Oldsu.Bancho.Handshakes
     {
         private IEnumerable<UserData> _users;
         private Privileges _privileges;
-        private uint _userId;
         
         private Channel[] _autojoinChannels; 
         private Channel[] _availableChannels;
@@ -20,12 +19,11 @@ namespace Oldsu.Bancho.Handshakes
         private List<Friendship> _friendsList;
 
         // Todo: add channels
-        public CommonHandshake(IEnumerable<UserData> users, uint userId, Privileges privileges,
+        public CommonHandshake(IEnumerable<UserData> users, Privileges privileges,
             Channel[] autojoinChannels, Channel[] availableChannels, List<Friendship> friendsList)
         {
             _privileges        = privileges;
             _users             = users;
-            _userId            = userId;
             _autojoinChannels  = autojoinChannels;
             _availableChannels = availableChannels;
             _friendsList       = friendsList;
@@ -33,9 +31,6 @@ namespace Oldsu.Bancho.Handshakes
         
         public async Task Execute(AuthenticatedConnection connection)
         {
-            await connection.SendPacketAsync(new BanchoPacket(
-                new Login() { LoginStatus = (int) _userId }));
-            
             await connection.SendPacketAsync(new BanchoPacket(
                 new BanchoPrivileges { Privileges = _privileges }));
             

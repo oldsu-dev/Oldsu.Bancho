@@ -326,6 +326,11 @@ namespace Oldsu.Bancho.User
         private TaskCompletionSource _waitDisconnectionSource;
 
         public Task WaitDisconnection => _waitDisconnectionSource.Task;
+
+        public void CompleteDisconnection()
+        {
+            _waitDisconnectionSource.SetResult();
+        }
         
         public async ValueTask DisposeAsync()
         {
@@ -341,8 +346,6 @@ namespace Oldsu.Bancho.User
             await streamingProvider.UnregisterStreamer(UserID);
             await lobbyProvider.TryLeaveMatch(UserID);
             await SubscriptionManager.DisposeAsync();
-            
-            _waitDisconnectionSource.SetResult();
         }
     }
 }

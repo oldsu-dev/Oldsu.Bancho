@@ -148,7 +148,6 @@ namespace Oldsu.Bancho
         {
             var conn = (Connection) sender!;
             
-            Debug.WriteLine($"{conn.ConnectionInfo.ClientIpAddress} disconnected. (${conn.GetType()}).");
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
             
             await _loggingManager.LogInfo<Server>("Client disconnected.", null, new
@@ -159,18 +158,31 @@ namespace Oldsu.Bancho
 
         private async Task DisconnectUser(uint userId)
         {
-            using var authenticatedConnectionsLock = await _authenticatedConnections.AcquireLockGuard();
-
-            if (authenticatedConnectionsLock.Value.TryGetValue(userId, out var authConnection))
+            UserContext context = default!;
+            
+            ValueTask disposeTask = await _authenticatedConnections.LockAsync(connections =>
             {
-                authenticatedConnectionsLock.Value.Remove(userId);
-                await authConnection.Context.DisposeAsync();
-            }
+                if (connections.TryGetValue(userId, out var authConnection))
+                {
+                    context = authConnection.Context;
+                    return authConnection.Context.DisposeAsync();
+                }
+                else
+                    return ValueTask.CompletedTask;
+            });
+
+            await disposeTask;
+
+            await _authenticatedConnections.LockAsync(connections =>
+            {
+                connections.Remove(userId);
+                context.CompleteDisconnection();
+            });
             
             await _loggingManager.LogInfo<Server>("User disconnected.", null, new
             {                    
-                authConnection.Context.Username,
-                authConnection.Context.UserID,
+                context.Username,
+                context.UserID,
             });
         }
 
@@ -225,7 +237,7 @@ namespace Oldsu.Bancho
                 
                 var presence = await GetPresenceAsync(userInfo!, utcOffset, showCity, connection.IP);
             
-                Task disconnectionTask = _authenticatedConnections.LockAsync(connections =>
+                Task disconnectionTask = await _authenticatedConnections.LockAsync<Task>(connections =>
                 {
                     if (!connections.TryGetValue(userInfo!.UserID, out var user)) 
                         return Task.CompletedTask;
@@ -281,8 +293,6 @@ namespace Oldsu.Bancho
             
             var autojoinChannels = await chatProvider.GetAutojoinChannelInfo(userInfo.Privileges);
             var availableChannels = await chatProvider.GetAvailableChannelInfo(userInfo.Privileges);
-            
-            await userContext.InitialRegistration(userInfo, presence, autojoinChannels);
 
             List<Friendship> friendships;
             await using (var database = new Database()) 
@@ -292,10 +302,14 @@ namespace Oldsu.Bancho
                     .ToListAsync();
             }
 
+            await upgradedConnection.SendPacketAsync(
+                new BanchoPacket(new Login() {LoginStatus = (int) userInfo.UserID}));
+
+            await userContext.InitialRegistration(userInfo, presence, autojoinChannels);            
+            
             await upgradedConnection.SendHandshake(
                 new CommonHandshake(
                     await userStateProvider.GetAllUsersAsync(),
-                    userInfo.UserID,
                     presence.Privilege,
                     autojoinChannels,
                     availableChannels,

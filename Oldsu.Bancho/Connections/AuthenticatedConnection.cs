@@ -120,7 +120,6 @@ namespace Oldsu.Bancho.Connections
             }
 
             ISharedPacketIn packet = ((IntoPacket<ISharedPacketIn>)obj).IntoPacket();
-            Debug.WriteLine(packet.GetType());
             
             PacketReceived?.Invoke(this, packet);
         }
