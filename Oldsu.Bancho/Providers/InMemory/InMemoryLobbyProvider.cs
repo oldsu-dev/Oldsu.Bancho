@@ -772,6 +772,9 @@ namespace Oldsu.Bancho.Providers.InMemory
                     playerData = joinedPlayersLock.Value[user];
                     
                     playerData.Playing = true;
+                    playerData.CanComplete = true;
+                    playerData.CanLoad = true;
+                    playerData.CanSkip = true;
                     playerData.ScoreFrame.SetValueAsync(new ScoreFrame());
                 });
                 
