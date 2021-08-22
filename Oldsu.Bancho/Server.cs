@@ -227,6 +227,12 @@ namespace Oldsu.Bancho
                 {
                     await connection.SendPacketAsync(new BanchoPacket(new Login {LoginStatus = (int) loginResult}));
                     connection.Disconnect();
+                    
+                    await _loggingManager.LogInfo<Server>("User authentication failed.", null, new
+                    {
+                        connection.IP
+                    });
+                    
                     return;
                 }
                 
