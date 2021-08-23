@@ -105,6 +105,9 @@ namespace Oldsu.Bancho.Providers.InMemory
             });
         }
 
+        public Task<bool> IsUserOnline(uint userId) =>
+            _wrapper.ReadAsync(users => users.ContainsKey(userId));
+
         public Task<UserData> GetUserAsync(uint userId) =>
             _wrapper.ReadAsync(users => (UserData) users[userId].Clone());
         
