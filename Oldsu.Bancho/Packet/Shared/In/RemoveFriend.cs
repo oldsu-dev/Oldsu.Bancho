@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Common;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
@@ -15,8 +16,16 @@ namespace Oldsu.Bancho.Packet.Shared.In {
         public async Task Handle(UserContext userContext, Connection connection) {
             await using var database = new Database();
 
-            await database.Database.ExecuteSqlRawAsync("DELETE FROM `friends` WHERE UserID={0} AND FriendUserID={1}", 
-                userContext.UserID, this._userId);
+            var friendship = await database.Friends
+                .Where(friendship => friendship.FriendUserID == _userId 
+                                     && friendship.UserID == userContext.UserID)
+                .FirstOrDefaultAsync();
+
+            if (friendship != null)
+            {
+                database.Friends.Remove(friendship);
+                await database.SaveChangesAsync();
+            }
         }
     }
 }
