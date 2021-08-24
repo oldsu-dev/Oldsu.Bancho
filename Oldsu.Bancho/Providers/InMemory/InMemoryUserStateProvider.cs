@@ -113,8 +113,6 @@ namespace Oldsu.Bancho.Providers.InMemory
             bool rankNotChanged = stats != null && previousUserData.Stats != null
                                   && previousUserData.Stats.Mode == gamemode
                                   && previousUserData.Stats.Rank == stats.Rank;
-
-            (uint Rank, uint UserID)[] swappedPairs = Array.Empty<(uint, uint)>();
             
             List<UserData> shiftedRankUserData = new List<UserData>();
             

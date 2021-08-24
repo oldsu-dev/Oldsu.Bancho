@@ -116,7 +116,7 @@ namespace Oldsu.Bancho
 
                 // user is found, user is not banned, client is not too old. Everything is fine.
                 return (LoginResult.AuthenticationSuccessful, user, version,
-                    byte.Parse(infoFields[1]), infoFields[2] == "1");
+                    (byte)sbyte.Parse(infoFields[1]), infoFields[2] == "1");
             }
             catch
             {
