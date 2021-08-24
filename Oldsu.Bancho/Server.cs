@@ -44,12 +44,12 @@ namespace Oldsu.Bancho
                 
                 foreach (var conn in connections.Where(c => c.PingTimeout))
                 {
-                    Console.WriteLine($"{conn.IP} timed out (${conn.GetType()}).");
-
-                    if (conn.IsZombie)
-                        conn.ForceDisconnect();
-                    else
-                        conn.Disconnect();
+                    await _loggingManager.LogInfo<Server>("Client timed out.", null, new
+                    {
+                        conn.IP 
+                    });
+                    
+                    conn.ForceDisconnect();
                 }
 
                 await Task.Delay(1000, ct);
@@ -166,15 +166,15 @@ namespace Oldsu.Bancho
                     return (authConnection.Context.DisposeAsync(), authConnection.DisconnectionAwaiter);
                 }
                 
-                return (ValueTask.CompletedTask, (TaskCompletionSource?)null);
+                return ((ValueTask?)null, (TaskCompletionSource?)null);
             });
 
-            if (disposeTask == ValueTask.CompletedTask)
+            if (disposeTask == null)
                 return;
 
             try
             {
-                await disposeTask;
+                await disposeTask!.Value;
                 
                 await _loggingManager.LogInfo<Server>("User disconnected.", null, new
                 {
@@ -238,7 +238,7 @@ namespace Oldsu.Bancho
                 if (loginResult != LoginResult.AuthenticationSuccessful)
                 {
                     await connection.SendPacketAsync(new BanchoPacket(new Login {LoginStatus = (int) loginResult}));
-                    connection.Disconnect();
+                    connection.Disconnect(false);
                     
                     await _loggingManager.LogInfo<Server>("User authentication failed.", null, new
                     {
@@ -265,7 +265,7 @@ namespace Oldsu.Bancho
                     if (!connections.TryGetValue(userInfo!.UserID, out var user)) 
                         return Task.CompletedTask;
                     
-                    user.Connection.Disconnect();
+                    user.Connection.ForceDisconnect();
                     return user.DisconnectionAwaiter.Task;
                 });
 
@@ -310,8 +310,6 @@ namespace Oldsu.Bancho
 
             upgradedConnection.Disconnected += HandleDisconnection;
             upgradedConnection.Disconnected += (_,_) => HandleUserDisconnection(userContext.UserID);
-            
-            HandleUserDisconnection(userInfo.UserID);
             
             await upgradedConnection.SendPacketAsync(_signaturePacket);
 
