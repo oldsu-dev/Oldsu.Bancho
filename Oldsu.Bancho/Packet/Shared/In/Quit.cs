@@ -9,7 +9,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public Task Handle(UserContext context, Connection connection)
         {
-            connection.Disconnect();
+            connection.Disconnect(false);
             
             return Task.CompletedTask;
         }

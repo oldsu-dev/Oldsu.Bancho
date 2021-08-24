@@ -23,7 +23,7 @@ namespace Oldsu.Bancho.Connections
         {
             await LockStateHolder.WaitStateLock();
             // UnauthenticatedConnection can't receive data messages 
-            Disconnect();
+            ForceDisconnect();
         }
 
         private volatile bool _loginReceived;

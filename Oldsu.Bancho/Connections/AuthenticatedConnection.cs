@@ -51,7 +51,7 @@ namespace Oldsu.Bancho.Connections
                         _userContext.Privileges,
                     });
                 
-                _connection.Disconnect();
+                _connection.ForceDisconnect();
             }
             finally
             {
@@ -131,7 +131,7 @@ namespace Oldsu.Bancho.Connections
         {
             await LockStateHolder.WaitStateLock();
             // UnauthenticatedConnection can't receive text messages 
-            Disconnect();
+            ForceDisconnect();
         }
 
         protected override void ClearEventSubscriptions()

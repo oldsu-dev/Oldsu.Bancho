@@ -55,7 +55,7 @@ namespace Oldsu.Bancho.Connections
         {
             RawConnection = webSocketConnection;
             Guid = guid;
-            RawConnection.OnClose += HandleDisconnection;
+            RawConnection.OnClose += ForceDisconnect;
 
             _sendPacketSemaphore = new SemaphoreSlim(1, 1);
             ResetPing(pingInterval);
@@ -76,7 +76,7 @@ namespace Oldsu.Bancho.Connections
         private void CheckCompletionState()
         {
             if (_sendingCompleted && _waitingPackets == 0)
-                _sendingCompletionSource.SetResult();
+                _sendingCompletionSource.TrySetResult();
         }
 
         private volatile bool _sendingCompleted;
@@ -125,35 +125,49 @@ namespace Oldsu.Bancho.Connections
 
         private volatile bool _disconnectRequest = false;
 
+        public async void ForceDisconnect()
+        {
+            Disconnect(true);
+        }
+        
         /// <summary>
         ///     Disconnects client from the server.
         /// </summary>
-        public async void Disconnect()
+        public async void Disconnect(bool force)
         {
             await LockStateHolder.WaitStateLock();
             
+            CompleteSending();
+            
+            if (!force)
+            {
+                try
+                {
+                    await _sendingCompletionSource.Task;
+                }
+                catch (TaskCanceledException)
+                {
+                    return;
+                }
+            }
+            
+            _sendingCompletionSource.TrySetException(new TaskCanceledException());
+            
+            RawConnection.Close();
+            HandleDisconnection();
+        }
+
+        private async void HandleDisconnection()
+        {
             if (_disconnectRequest)
                 return;
 
             _disconnectRequest = true;
             
-            CompleteSending();
-            await _sendingCompletionSource.Task;
-            RawConnection.Close();
-            
-        }
-
-        public void ForceDisconnect() => HandleDisconnection();
-
-        private async void HandleDisconnection()
-        {
             Disconnected?.Invoke(this, EventArgs.Empty);
             ClearEventSubscriptions();
         }
 
-        protected virtual void ClearEventSubscriptions()
-        {
-            RawConnection.OnClose -= HandleDisconnection;
-        }
+        protected virtual void ClearEventSubscriptions() { }
     }
 }
