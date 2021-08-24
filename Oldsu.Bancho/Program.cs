@@ -11,7 +11,8 @@ using Oldsu.Logging;
 using Oldsu.Logging.Strategies;
 using Oldsu.Types;
 
-var loggingManager = new LoggingManager(new NoLog());
+var loggingManager = new LoggingManager(new MongoDbWriter(
+    Environment.GetEnvironmentVariable("OLDSU_MONGO_DB_CONNECTION_STRING")!));
 
 IChatProvider chatProvider = new InMemoryChatProvider(loggingManager);
 
