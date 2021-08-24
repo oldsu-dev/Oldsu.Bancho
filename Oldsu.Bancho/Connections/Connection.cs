@@ -8,6 +8,26 @@ using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Connections
 {
+    public class LockStateHolder
+    {
+        private TaskCompletionSource? _awaiter { get; set; }
+        
+        public Task WaitStateLock()
+        {
+            var lockStateHolder = _awaiter;
+            
+            return lockStateHolder?.Task ?? Task.CompletedTask;
+        }
+
+        public void LockState() => _awaiter = new TaskCompletionSource();
+        
+        public void UnlockState()
+        {
+            _awaiter!.SetResult();
+            _awaiter = null;
+        }
+    }
+    
     public abstract class Connection
     {
         protected IWebSocketConnection RawConnection { get; }
@@ -21,22 +41,8 @@ namespace Oldsu.Bancho.Connections
 
         public event EventHandler? Disconnected;
         
-        protected TaskCompletionSource? LockStateHolder;
+        public LockStateHolder LockStateHolder { get; protected set; }
 
-        protected Task WaitStateLock()
-        {
-            var lockStateHolder = LockStateHolder;
-            
-            return lockStateHolder?.Task ?? Task.CompletedTask;
-        }
-
-        public void LockState() => LockStateHolder = new TaskCompletionSource();
-        
-        public void UnlockState()
-        {
-             LockStateHolder!.SetResult();
-             LockStateHolder = null;
-        }
 
         public Version Version { get;  set; } 
         public Guid Guid { get; }
@@ -55,6 +61,7 @@ namespace Oldsu.Bancho.Connections
             ResetPing(pingInterval);
 
             _sendingCompletionSource = new TaskCompletionSource();
+            LockStateHolder = new LockStateHolder();
         }
 
         protected void ResetPing(int nextPeriod) =>
@@ -84,7 +91,7 @@ namespace Oldsu.Bancho.Connections
         public async Task InternalSendPacket(BanchoPacket packet)
         {
             await _sendPacketSemaphore.WaitAsync();
-            await WaitStateLock();
+            await LockStateHolder.WaitStateLock();
             
             if (_sendingCompleted)
                 return;
@@ -123,7 +130,7 @@ namespace Oldsu.Bancho.Connections
         /// </summary>
         public async void Disconnect()
         {
-            await WaitStateLock();
+            await LockStateHolder.WaitStateLock();
             
             if (_disconnectRequest)
                 return;

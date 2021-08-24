@@ -215,6 +215,8 @@ namespace Oldsu.Bancho
         {
             UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
 
+            LockStateHolder lockStateHolder = connection.LockStateHolder;
+            
             await _loggingManager.LogInfo<Server>("Client attempts to login.", null, new
             {
                 connection.IP,
@@ -223,6 +225,7 @@ namespace Oldsu.Bancho
             if (connection.IsZombie)
                 return;
 
+            lockStateHolder.LockState();
             await _connections.WriteAsync(connections => connections.Remove(connection.Guid));
             await _connectionSemaphore.WaitAsync();
             
@@ -275,7 +278,7 @@ namespace Oldsu.Bancho
             finally
             {
                 _connectionSemaphore.Release();
-                connection?.UnlockState();
+                lockStateHolder.UnlockState();
             }
         }
 

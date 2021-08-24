@@ -99,7 +99,7 @@ namespace Oldsu.Bancho.Connections
 
         public event EventHandler<ISharedPacketIn>? PacketReceived;
         
-        internal AuthenticatedConnection(Guid guid, IWebSocketConnection webSocketConnection, TaskCompletionSource? lockStateHolder) 
+        internal AuthenticatedConnection(Guid guid, IWebSocketConnection webSocketConnection, LockStateHolder lockStateHolder) 
             : base(guid, webSocketConnection, PingMaxInterval)
         {
             RawConnection.OnBinary += HandleBinary;
@@ -112,7 +112,7 @@ namespace Oldsu.Bancho.Connections
         
         private async void HandleBinary(byte[] data)
         {
-            await WaitStateLock();
+            await LockStateHolder.WaitStateLock();
             
             ResetPing(PingMaxInterval);
             
@@ -129,7 +129,7 @@ namespace Oldsu.Bancho.Connections
 
         private async void HandleMessage(string message)
         {
-            await WaitStateLock();
+            await LockStateHolder.WaitStateLock();
             // UnauthenticatedConnection can't receive text messages 
             Disconnect();
         }

@@ -21,16 +21,16 @@ namespace Oldsu.Bancho.Connections
         
         private async void HandleBinary(byte[] data)
         {
-            await WaitStateLock();
+            await LockStateHolder.WaitStateLock();
             // UnauthenticatedConnection can't receive data messages 
             Disconnect();
         }
 
         private volatile bool _loginReceived;
         
-        private void HandleMessage(string message)
+        private async void HandleMessage(string message)
         {
-            WaitStateLock();
+            await LockStateHolder.WaitStateLock();
             
             if (_loginReceived)
                 return;
