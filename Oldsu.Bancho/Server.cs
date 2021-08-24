@@ -309,6 +309,7 @@ namespace Oldsu.Bancho
             upgradedConnection.PacketReceived += (_, packet) => handler.ProcessPacket(packet);
 
             upgradedConnection.Disconnected += HandleDisconnection;
+            upgradedConnection.Disconnected += (_,_) => HandleUserDisconnection(userContext.UserID);
             
             HandleUserDisconnection(userInfo.UserID);
             
