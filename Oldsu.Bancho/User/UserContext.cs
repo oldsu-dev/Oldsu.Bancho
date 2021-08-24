@@ -335,7 +335,7 @@ namespace Oldsu.Bancho.User
         
         public async ValueTask DisposeAsync()
         {
-            if (!_disposing)
+            if (_disposing)
                 return;
 
             _disposing = true;

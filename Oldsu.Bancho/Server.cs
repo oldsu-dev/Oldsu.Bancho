@@ -217,17 +217,17 @@ namespace Oldsu.Bancho
 
             LockStateHolder lockStateHolder = connection.LockStateHolder;
             
-            await _loggingManager.LogInfo<Server>("Client attempts to login.", null, new
-            {
-                connection.IP,
-            });
-            
             if (connection.IsZombie)
                 return;
 
             lockStateHolder.LockState();
             await _connections.WriteAsync(connections => connections.Remove(connection.Guid));
             await _connectionSemaphore.WaitAsync();
+            
+            await _loggingManager.LogInfo<Server>("Authenticating client.", null, new
+            {
+                connection.IP,
+            });
             
             try
             {
