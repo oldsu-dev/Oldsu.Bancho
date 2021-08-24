@@ -123,6 +123,8 @@ namespace Oldsu.Bancho.Connections
         /// </summary>
         public async void Disconnect()
         {
+            await WaitStateLock();
+            
             if (_disconnectRequest)
                 return;
 
@@ -138,8 +140,6 @@ namespace Oldsu.Bancho.Connections
 
         private async void HandleDisconnection()
         {
-            await WaitStateLock();
-            
             Disconnected?.Invoke(this, EventArgs.Empty);
             ClearEventSubscriptions();
         }

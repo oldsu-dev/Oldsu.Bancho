@@ -17,6 +17,7 @@ namespace Oldsu.Bancho.Providers
         Task NotifySpectatorJoined(uint userId, uint spectatorUserId);
         Task NotifySpectatorLeft(uint spectatorUserId);
         Task RegisterStreamer(uint userId);
+        Task<bool> IsSpectating(uint spectatorUserId);
         Task UnregisterStreamer(uint userId);
     }
 }

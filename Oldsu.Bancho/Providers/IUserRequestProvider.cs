@@ -9,6 +9,12 @@ namespace Oldsu.Bancho.Providers
         SubscribeToMatchSetup,
         AnnounceTransferHost
     }
+
+    public class UserRequest
+    {
+        public UserRequestTypes Type { get; set; }
+        public TaskCompletionSource? RequestFulfiller { get; set; }
+    }
     
     public interface IUserRequestObservable : IAsyncObservable<ProviderEvent> 
     {}
@@ -17,8 +23,9 @@ namespace Oldsu.Bancho.Providers
     { 
         Task RegisterUser(uint userId);
         Task UnregisterUser(uint userId);
-        Task QuitMatch(uint userId);
-        Task AnnounceTransferHost(uint userId);
+        Task<Task> QuitMatch(uint userId);
+        Task<Task> AnnounceTransferHost(uint userId);
+        Task<Task> SubscribeToMatchUpdates(uint userId);
         Task<IUserRequestObservable> GetObservable(uint userId);
     }
 }

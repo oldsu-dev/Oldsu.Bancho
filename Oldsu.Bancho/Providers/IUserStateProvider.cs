@@ -16,7 +16,8 @@ namespace Oldsu.Bancho.Providers
         Task UnregisterUserAsync(uint userId);
         Task<IEnumerable<UserData>> GetAllUsersAsync();
         Task SetActivityAsync(uint userId, Activity activity);
-        Task SetStatsAsync(uint userId, StatsWithRank? stats);
+        Task SetStatsAsync(uint userId, Mode gamemode, StatsWithRank? stats);
+        Task<UserData?> GetUser(uint userId);
         Task<bool> IsUserOnline(uint userId);
     }
 }

@@ -209,12 +209,16 @@ namespace Oldsu.Bancho.User
 
             Dependencies = dependencies;
             Logger = loggingManager;
-            _waitDisconnectionSource = new TaskCompletionSource();
         }
 
-        public async Task HandleUserRequest(UserRequestTypes request)
+        public async Task HandleUserRequest(UserRequest userRequest)
         {
-            switch (request)
+            if (_disposing)
+                return;
+
+            var type = userRequest.Type;
+            
+            switch (type)
             {
                 case UserRequestTypes.QuitMatch:
                     await Dependencies.Get<ILobbyProvider>().TryLeaveMatch(UserID);
@@ -236,13 +240,17 @@ namespace Oldsu.Bancho.User
                     break;
                     
                 case UserRequestTypes.SubscribeToMatchSetup:
-                    await SubscriptionManager.SubscribeToMatchSetupUpdates(
-                        (await Dependencies.Get<ILobbyProvider>().GetMatchSetupObservable(UserID))!);
+                    var matchObservable = await Dependencies.Get<ILobbyProvider>().GetMatchSetupObservable(UserID);
+                    
+                    if (matchObservable != null)
+                        await SubscriptionManager.SubscribeToMatchSetupUpdates(matchObservable);
 
                     break;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(request), request, null);
+                    throw new ArgumentOutOfRangeException(nameof(type), type, null);
             }
+            
+            userRequest.RequestFulfiller?.SetResult();
         }
         
         public async Task LeaveChannel(string tag)
@@ -323,23 +331,21 @@ namespace Oldsu.Bancho.User
         // private readonly AsyncRwLockWrapper<GameSpectator> _gameSpectator;
         // private readonly AsyncRwLockWrapper<GameBroadcaster> _gameBroadcaster;
 
-        private TaskCompletionSource _waitDisconnectionSource;
-
-        public Task WaitDisconnection => _waitDisconnectionSource.Task;
-
-        public void CompleteDisconnection()
-        {
-            _waitDisconnectionSource.SetResult();
-        }
+        private volatile bool _disposing = false; 
         
         public async ValueTask DisposeAsync()
         {
+            if (!_disposing)
+                return;
+
+            _disposing = true;
+
             var streamingProvider = Dependencies.Get<IStreamingProvider>();
             var chatProvider = Dependencies.Get<IChatProvider>();
             var userStateProvider = Dependencies.Get<IUserStateProvider>();
             var userRequestProvider = Dependencies.Get<IUserRequestProvider>();
             var lobbyProvider = Dependencies.Get<ILobbyProvider>();
-            
+
             await chatProvider.UnregisterUser(Username);
             await userRequestProvider.UnregisterUser(UserID);
             await userStateProvider.UnregisterUserAsync(UserID);

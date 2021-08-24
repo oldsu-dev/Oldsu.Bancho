@@ -230,11 +230,11 @@ namespace Oldsu.Bancho.Providers.InMemory
                 Data = new BanchoPacket(new Packet.Shared.Out.MatchComplete()),
                 DataType = ProviderEventType.BanchoPacket
             };
-            
+
             var evRequest = new ProviderEvent
             {
                 ProviderType = ProviderType.Lobby,
-                Data = UserRequestTypes.SubscribeToMatchSetup,
+                Data = new UserRequest() { Type = UserRequestTypes.SubscribeToMatchSetup },
                 DataType = ProviderEventType.UserRequest
             };            
             
@@ -244,8 +244,8 @@ namespace Oldsu.Bancho.Providers.InMemory
 
                 if (observable is not null)
                 {
-                    await observables[matchId]!.Notify(ev);
-                    await observables[matchId]!.Notify(evRequest);
+                    await observable.Notify(ev);
+                    await observable.Notify(evRequest);
                 }
             });
         }
@@ -806,16 +806,29 @@ namespace Oldsu.Bancho.Providers.InMemory
                 if (!joinedPlayersLock.Value.TryGetValue(userId, out var playerData))
                     throw new UserNotInMatchException();
 
-                if (!playerData.Playing)
-                    throw new UserNotPlayingException();
-
                 using var matchesLock = await _matches.AcquireReadLockGuard();
                 
+                matchId = playerData.MatchID;
+                
+                if (!playerData.Playing)
+                {
+                    await _loggingManager.LogInfo<ILobbyProvider>(
+                        "User sent ScoreFrame when not playing but in match.",
+                        null,
+                        new
+                        {
+                            UserID = userId,
+                            MatchID = matchId,
+                            MatchUUID = matchesLock.Value[matchId]!.UUID
+                        });
+                    
+                    return;
+                }
+
                 scoreFrame.SlotID = (byte)matchesLock.Value[playerData.MatchID]!.GetSlotIndexByPlayerID(userId);
 
                 await playerData.ScoreFrame.SetValueAsync(scoreFrame);
                 
-                matchId = playerData.MatchID;
             }
 
             await NotifyMatchScore(matchId, scoreFrame);

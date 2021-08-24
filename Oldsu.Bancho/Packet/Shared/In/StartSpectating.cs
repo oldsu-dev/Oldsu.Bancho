@@ -13,7 +13,13 @@ namespace Oldsu.Bancho.Packet.Shared.In
         public async Task Handle(UserContext userContext, Connection _)
         {
             var streamingProvider = userContext.Dependencies.Get<IStreamingProvider>();
-            
+
+            if (await streamingProvider.IsSpectating(userContext.UserID))
+            {
+                await streamingProvider.NotifySpectatorLeft(userContext.UserID);
+                await userContext.SubscriptionManager.UnsubscribeFromSpectatorObservable();
+            }
+
             await userContext.Dependencies.Get<IStreamingProvider>().NotifySpectatorJoined(
                 (uint)UserID, (uint)userContext.UserID);
 

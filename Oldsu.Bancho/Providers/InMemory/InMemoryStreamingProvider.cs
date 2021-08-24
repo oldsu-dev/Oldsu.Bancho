@@ -55,6 +55,8 @@ namespace Oldsu.Bancho.Providers.InMemory
                     Data = new BanchoPacket(new FrameBundle {Frames = frameData})
                 }));
 
+        
+        
         public async Task NotifySpectatorJoined(uint userId, uint spectatorUserId)
         {
             await _loggingManager.LogInfo<IStreamingProvider>("Spectator joined.", null, new
@@ -66,7 +68,7 @@ namespace Oldsu.Bancho.Providers.InMemory
             using var streamerObservablesLock = await _streamerObservables.AcquireReadLockGuard();
             using var spectatorObservablesLock = await _spectatorObservables.AcquireReadLockGuard();
             using var spectatorCouplesLock = await _streamingPairs.AcquireLockGuard();
-   
+
             spectatorCouplesLock.Value.Add(spectatorUserId, userId);
             
             await streamerObservablesLock.Value[userId].Notify(new ProviderEvent
@@ -125,16 +127,17 @@ namespace Oldsu.Bancho.Providers.InMemory
             spectatorObservablesLock.Value.Add(userId, new InMemorySpectatorObservable());
         }
 
+        public Task<bool> IsSpectating(uint spectatorUserId) =>
+            _streamingPairs.LockAsync(pair => pair.ContainsKey(spectatorUserId));
+
         public async Task UnregisterStreamer(uint userId)
         {
             using var streamerObservablesLock = await _streamerObservables.AcquireWriteLockGuard();
             using var spectatorObservablesLock = await _spectatorObservables.AcquireWriteLockGuard();
             
-            if (!streamerObservablesLock.Value.ContainsKey(userId))
-                return;
+            if (streamerObservablesLock.Value.Remove(userId))
+                await spectatorObservablesLock.Value[userId].Complete();
             
-            streamerObservablesLock.Value.Remove(userId);
-            await spectatorObservablesLock.Value[userId].Complete();
             spectatorObservablesLock.Value.Remove(userId);
         }
     }

@@ -29,7 +29,7 @@ namespace Oldsu.Bancho
         private AsyncRwLockWrapper<Dictionary<Guid, Connection>> _connections;
 
         private AsyncMutexWrapper<Dictionary<uint,
-            (AuthenticatedConnection Connection, UserContext Context)>> _authenticatedConnections;
+            (AuthenticatedConnection Connection, UserContext Context, TaskCompletionSource DisconnectionAwaiter)>> _authenticatedConnections;
 
         private SemaphoreSlim _connectionSemaphore = new SemaphoreSlim(1, 1);
 
@@ -40,18 +40,17 @@ namespace Oldsu.Bancho
                 if (ct.IsCancellationRequested)
                     return;
 
-                await _connections.ReadAsync(connections =>
+                var connections = await _connections.ReadAsync(connections => connections.Values.ToArray());
+                
+                foreach (var conn in connections.Where(c => c.PingTimeout))
                 {
-                    foreach (var conn in connections.Values.Where(c => c.PingTimeout))
-                    {
-                        Console.WriteLine($"{conn.ConnectionInfo.Host} timed out (${conn.GetType()}).");
+                    Console.WriteLine($"{conn.IP} timed out (${conn.GetType()}).");
 
-                        if (conn.IsZombie)
-                            conn.ForceDisconnect();
-                        else
-                            conn.Disconnect();
-                    }
-                });
+                    if (conn.IsZombie)
+                        conn.ForceDisconnect();
+                    else
+                        conn.Disconnect();
+                }
 
                 await Task.Delay(1000, ct);
             }
@@ -67,8 +66,7 @@ namespace Oldsu.Bancho
             _connections = new AsyncRwLockWrapper<Dictionary<Guid, Connection>>(new());
 
             _authenticatedConnections =
-                new AsyncMutexWrapper<Dictionary<uint, 
-                    (AuthenticatedConnection Connection, UserContext Context)>>(new());
+                new AsyncMutexWrapper<Dictionary<uint, (AuthenticatedConnection, UserContext, TaskCompletionSource)>>(new());
 
             _dependencyManager = dependencyManager;
             _loggingManager = loggingManager;
@@ -149,7 +147,7 @@ namespace Oldsu.Bancho
             var conn = (Connection) sender!;
             
             await _connections.WriteAsync(connections => connections.Remove(conn.Guid));
-            
+
             await _loggingManager.LogInfo<Server>("Client disconnected.", null, new
             {
                 conn.IP
@@ -159,31 +157,40 @@ namespace Oldsu.Bancho
         private async Task DisconnectUser(uint userId)
         {
             UserContext context = default!;
-            
-            ValueTask disposeTask = await _authenticatedConnections.LockAsync(connections =>
+
+            var (disposeTask, disconnectionAwaiter) = await _authenticatedConnections.LockAsync(connections =>
             {
                 if (connections.TryGetValue(userId, out var authConnection))
                 {
                     context = authConnection.Context;
-                    return authConnection.Context.DisposeAsync();
+                    return (authConnection.Context.DisposeAsync(), authConnection.DisconnectionAwaiter);
                 }
-                else
-                    return ValueTask.CompletedTask;
+                
+                return (ValueTask.CompletedTask, (TaskCompletionSource?)null);
             });
 
-            await disposeTask;
+            if (disposeTask == ValueTask.CompletedTask)
+                return;
 
-            await _authenticatedConnections.LockAsync(connections =>
+            try
             {
-                connections.Remove(userId);
-                context.CompleteDisconnection();
-            });
+                await disposeTask;
+                
+                await _loggingManager.LogInfo<Server>("User disconnected.", null, new
+                {
+                    context.Username,
+                    context.UserID,
+                });
+            }
+            catch (Exception exception)
+            {
+                disconnectionAwaiter!.SetException(exception);
+                throw;
+            }
+
+            await _authenticatedConnections.LockAsync(connections => connections.Remove(userId));
             
-            await _loggingManager.LogInfo<Server>("User disconnected.", null, new
-            {                    
-                context.Username,
-                context.UserID,
-            });
+            disconnectionAwaiter!.SetResult();
         }
 
         private async void HandleUserDisconnection(uint userId) => await DisconnectUser(userId);
@@ -193,10 +200,13 @@ namespace Oldsu.Bancho
             var guid = Guid.NewGuid();
             var connection = new UnauthenticatedConnection(guid, webSocketConnection);
             
-            Console.WriteLine($"{connection.IP} trying to connect.");
-
             await _connections.WriteAsync(connections => connections.Add(guid, connection));
 
+            await _loggingManager.LogInfo<Server>("Client connected.", null, new
+            {
+                connection.IP,
+            });
+            
             connection.Disconnected += HandleDisconnection;
             connection.Login += HandleLogin;
         }
@@ -204,21 +214,20 @@ namespace Oldsu.Bancho
         private async void HandleLogin(object? sender, string authString)
         {
             UnauthenticatedConnection connection = (UnauthenticatedConnection) sender!;
-            connection.LockState();
 
+            await _loggingManager.LogInfo<Server>("Client attempts to login.", null, new
+            {
+                connection.IP,
+            });
+            
             if (connection.IsZombie)
                 return;
-            
-            await _connectionSemaphore.WaitAsync();
+
             await _connections.WriteAsync(connections => connections.Remove(connection.Guid));
+            await _connectionSemaphore.WaitAsync();
             
             try
             {
-                await _loggingManager.LogInfo<Server>("Client connected.", null, new
-                {
-                    connection.IP,
-                });
-                    
                 connection.Login -= HandleLogin;
 
                 var (loginResult, userInfo, version, utcOffset, showCity) = await Authenticate(authString);
@@ -254,19 +263,19 @@ namespace Oldsu.Bancho
                         return Task.CompletedTask;
                     
                     user.Connection.Disconnect();
-                    return user.Context.WaitDisconnection;
+                    return user.DisconnectionAwaiter.Task;
                 });
 
                 await disconnectionTask;
 
                 var (upgradedConnection, context) = await UpgradeConnection(connection, version, userInfo!, presence);
-                await _authenticatedConnections.LockAsync(connections => connections.Add(userInfo!.UserID, (upgradedConnection, context)));
-                
-                upgradedConnection.UnlockState();
+                await _authenticatedConnections.LockAsync(connections => connections.Add(userInfo!.UserID, 
+                    (upgradedConnection, context, new TaskCompletionSource())));
             }
             finally
             {
                 _connectionSemaphore.Release();
+                connection?.UnlockState();
             }
         }
 
@@ -292,12 +301,13 @@ namespace Oldsu.Bancho
 
             // Bind connection events
             userContext.SubscriptionManager.PacketInbound += (_, packet) => handler.PacketInbound(packet);
-            userContext.SubscriptionManager.EventInbound += (_, packet) => handler.UserRequestInbound((UserRequestTypes)packet.Data!);
+            userContext.SubscriptionManager.EventInbound += (_, packet) => handler.UserRequestInbound((UserRequest)packet.Data!);
             
             upgradedConnection.PacketReceived += (_, packet) => handler.ProcessPacket(packet);
-            
+
             upgradedConnection.Disconnected += HandleDisconnection;
-            upgradedConnection.Disconnected += (_, _) => HandleUserDisconnection(userInfo.UserID);
+            
+            HandleUserDisconnection(userInfo.UserID);
             
             await upgradedConnection.SendPacketAsync(_signaturePacket);
 

@@ -64,7 +64,7 @@ namespace Oldsu.Bancho.Connections
             _connection.SendPacketAsync(packet);
         }
 
-        public async void UserRequestInbound(UserRequestTypes request)
+        public async void UserRequestInbound(UserRequest request)
         {
             await _eventSemaphore.WaitAsync();
 

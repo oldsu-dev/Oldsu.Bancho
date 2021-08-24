@@ -34,7 +34,7 @@ namespace Oldsu.Bancho.Providers.InMemory
             observablesLock.Value.Remove(userId);
         }
 
-        public async Task QuitMatch(uint userId)
+        public async Task<Task> QuitMatch(uint userId)
         {
             using var observableLock = await _observables.AcquireReadLockGuard();
 
@@ -49,15 +49,29 @@ namespace Oldsu.Bancho.Providers.InMemory
                     UserID = userId
                 });
             
+            return await NotifyAndGetFulfillerTask(observable, UserRequestTypes.QuitMatch);
+        }
+
+        private static async Task<Task> NotifyAndGetFulfillerTask(
+            IUserRequestObservable observable, UserRequestTypes requestType)
+        {
+            var userRequest = new UserRequest
+            {
+                Type = requestType,
+                RequestFulfiller = new TaskCompletionSource()
+            };
+            
             await observable.Notify(new ProviderEvent
             {
-                Data = UserRequestTypes.QuitMatch,
+                Data = userRequest,
                 DataType = ProviderEventType.UserRequest,
                 ProviderType = ProviderType.UserRequest
             });
-        }
 
-        public async Task AnnounceTransferHost(uint userId)
+            return userRequest.RequestFulfiller.Task;
+        }
+        
+        public async Task<Task> AnnounceTransferHost(uint userId)
         {
             using var observableLock = await _observables.AcquireReadLockGuard();
 
@@ -71,13 +85,26 @@ namespace Oldsu.Bancho.Providers.InMemory
                 {
                     UserID = userId
                 });
-            
-            await observable.Notify(new ProviderEvent
-            {
-                Data = UserRequestTypes.AnnounceTransferHost,
-                DataType = ProviderEventType.UserRequest,
-                ProviderType = ProviderType.UserRequest
-            });
+
+            return await NotifyAndGetFulfillerTask(observable, UserRequestTypes.AnnounceTransferHost);
+        }
+
+        public async Task<Task> SubscribeToMatchUpdates(uint userId)
+        {
+            using var observableLock = await _observables.AcquireReadLockGuard();
+
+            if (!observableLock.Value.TryGetValue(userId, out var observable))
+                throw new UserNotFoundException();
+
+            await _loggingManager.LogInfo<ILobbyProvider>(
+                "Send subscribe to match updates request.", 
+                null, 
+                new
+                {
+                    UserID = userId
+                });
+
+            return await NotifyAndGetFulfillerTask(observable, UserRequestTypes.SubscribeToMatchSetup);
         }
 
         public async Task<IUserRequestObservable> GetObservable(uint userId)
