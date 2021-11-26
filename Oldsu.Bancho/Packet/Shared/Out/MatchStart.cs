@@ -1,13 +1,14 @@
-using Oldsu.Bancho.Multiplayer;
+using Oldsu.Bancho.GameLogic.Multiplayer;
 using Oldsu.Bancho.Packet.Objects.B904;
+using MatchState = Oldsu.Bancho.Packet.Objects.B904.MatchState;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class MatchStart : ISharedPacketOut, IntoPacket<IB904PacketOut>
+    public class MatchStart : SharedPacketOut, IntoPacket<IB904PacketOut>
     {
-        public MatchState MatchState { get; set; }
+        public Match Match { get; set; }
         
         public IB904PacketOut IntoPacket() => new Packet.Out.B904.MatchStart 
-            {Match = Match.FromMatchState(MatchState)};
+            {MatchState = MatchState.FromMatchState(Match)};
     }
 }

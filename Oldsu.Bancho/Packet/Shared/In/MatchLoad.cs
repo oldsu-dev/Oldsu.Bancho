@@ -1,21 +1,18 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
-using Oldsu.Enums;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class MatchLoad : ISharedPacketIn
     {
-        public async Task Handle(UserContext userContext, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
+            if (context.User.Match == null)
+                throw new UserNotInMatchException();
             
-            await userContext.SubscriptionManager.SubscribeToMatchGameUpdates(
-                (await lobbyProvider.GetMatchGameObservable(userContext.UserID))!);
-            
-            await lobbyProvider.MatchLoad(userContext.UserID);
+            context.User.Match.Load(context.User);
         }
     }
 }   

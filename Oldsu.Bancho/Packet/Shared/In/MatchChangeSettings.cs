@@ -1,9 +1,6 @@
-using System.Threading.Tasks;
-using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Multiplayer;
-using Oldsu.Bancho.Multiplayer.Enums;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
+using Oldsu.Bancho.GameLogic.Multiplayer;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -11,7 +8,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public MatchSettings MatchSettings { get; set; }
 
-        public async Task Handle(UserContext userContext, Connection _) =>
-            await userContext.Dependencies.Get<ILobbyProvider>().MatchChangeSettings(userContext.UserID, MatchSettings);
+        public void Handle(HubEventContext context)
+        {
+            if (context.User.Match == null)
+                throw new UserNotInMatchException();
+            
+            context.User.Match.ChangeSettings(context.User, MatchSettings);
+        }
     }
 }

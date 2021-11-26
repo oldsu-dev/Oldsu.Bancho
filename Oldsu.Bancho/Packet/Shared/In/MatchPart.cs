@@ -1,22 +1,18 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class MatchPart : ISharedPacketIn
     {
-        public async Task Handle(UserContext userContext, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            await userContext.Dependencies.Get<ILobbyProvider>().TryLeaveMatch(userContext.UserID);
-
-            await userContext.SubscriptionManager.UnsubscribeFromChannel("#multiplayer");
-            await connection.SendPacketAsync(new BanchoPacket(new ChannelLeft() {ChannelName = "#multiplayer"}));
+            if (context.User.Match == null)
+                throw new UserNotInMatchException();
             
-            if (!userContext.SubscriptionManager.SubscribedToLobby)
-                await userContext.SubscriptionManager.UnsubscribeFromMatchUpdates();
+            context.User.Match.Leave(context.User);
         }
     }
 }

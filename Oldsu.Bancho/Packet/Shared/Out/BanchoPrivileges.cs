@@ -2,7 +2,7 @@
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct BanchoPrivileges : ISharedPacketOut, IntoPacket<IB904PacketOut>
+    public class BanchoPrivileges : SharedPacketOut, IntoPacket<IB904PacketOut>
     {
         public Privileges Privileges { get; init; }
 

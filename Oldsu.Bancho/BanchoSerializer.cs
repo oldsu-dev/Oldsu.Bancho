@@ -397,7 +397,7 @@ namespace Oldsu.Bancho
 
             public override void WriteToStream(object? instance, BinaryWriter bw)
             {
-                var array = (Array)GetValueFromObject(instance)!;
+                var array = (Array)GetValueFromObject(instance!)!;
 
                 if (Attribute.ArrayElementCount != array.Length)
                     throw new InvalidDataException(
@@ -671,7 +671,7 @@ namespace Oldsu.Bancho
             return instance;
         }
 
-        public static byte[] Serialize(object instance)
+        public static ReadOnlyMemory<byte> Serialize(object instance)
         {
             using var ms = new MemoryStream();
             using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
@@ -682,22 +682,28 @@ namespace Oldsu.Bancho
             bw.Write(attrib.Id);
             bw.Write((byte)0x0);
 
+            long pos;
+            
             if (instance is BanchoBuffer buffer)
             {
                 bw.Write(buffer.Data.Length);
                 bw.Write(buffer.Data);
+
+                pos = ms.Position;
             }
             else
             {
                 bw.Write((int)0x0);
 
                 Write(instance, bw);
+                
+                pos = ms.Position;
 
                 bw.Seek(3, SeekOrigin.Begin);
                 bw.Write((int)(bw.BaseStream.Length - 7));
             }
 
-            return ms.ToArray();
+            return new ReadOnlyMemory<byte>(ms.GetBuffer(), 0, (int)pos);
         }
     }
 }

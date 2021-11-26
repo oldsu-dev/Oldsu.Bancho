@@ -1,7 +1,7 @@
 ﻿using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.GameLogic;
+using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -10,7 +10,10 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public byte[] Frames { get; init; }
 
-        public Task Handle(UserContext userContext, Connection _) =>
-            userContext.Dependencies.Get<IStreamingProvider>().PushFrames(userContext.UserID, Frames);
+        public void Handle(HubEventContext context)
+        {
+            context.Hub.UserPanelManager.EntitiesByUserID[context.User.UserID]
+                .BroadcastToSpectators(new Out.FrameBundle{Frames = Frames});
+        }
     }
 }

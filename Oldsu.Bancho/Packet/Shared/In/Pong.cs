@@ -1,15 +1,15 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class Pong : ISharedPacketIn
     {
-        public async Task Handle(UserContext client, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            await connection.SendPacketAsync(new BanchoPacket(new Ping()));
+            context.User.SendPacket(new Ping());
         }
     }
 }

@@ -1,11 +1,14 @@
 ﻿using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.GameLogic;
+using Oldsu.Logging;
 
 namespace Oldsu.Bancho.Packet
 {
+
+    
     public interface ISharedPacketIn
     {
-        public Task Handle(UserContext userContext, Connection connection);
+        public void Handle(HubEventContext context);
     }
 }

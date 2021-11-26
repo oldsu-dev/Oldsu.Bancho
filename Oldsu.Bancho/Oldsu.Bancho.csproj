@@ -2,22 +2,22 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\fleck\src\Fleck\Fleck.csproj" />
     <ProjectReference Include="..\oldsu\oldsu\Oldsu.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Fleck" Version="1.2.0" />
     <PackageReference Include="MaxMind.Db" Version="3.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Exceptions\UserState" />
+    <Folder Include="GameLogic\Exceptions" />
     <Folder Include="Packet\Objects" />
   </ItemGroup>
 

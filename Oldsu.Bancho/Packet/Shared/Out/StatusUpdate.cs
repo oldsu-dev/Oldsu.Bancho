@@ -1,19 +1,18 @@
 ﻿using Oldsu.Bancho.Enums;
-using Oldsu.Bancho.User;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct StatusUpdate : ISharedPacketOut, IntoPacket<IB904PacketOut>
+    public class StatusUpdate : SharedPacketOut, IntoPacket<IB904PacketOut>
     {
-        public static StatusUpdate FromUserData(UserData userData, Completeness completeness) =>
+        public static StatusUpdate FromUserData(User user, Completeness completeness) =>
             new StatusUpdate
             {
-                Activity = userData.Activity,
+                Activity = user.Activity,
                 Completeness = completeness,
-                Presence = userData.Presence,
-                Stats = userData.Stats,
-                User = userData.UserInfo
+                Presence = user.Presence,
+                Stats = user.Stats,
+                User = user.UserInfo
             };
 
         public UserInfo User { get; init; }

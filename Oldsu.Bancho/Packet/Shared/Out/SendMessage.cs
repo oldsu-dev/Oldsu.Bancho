@@ -1,6 +1,6 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct SendMessage : ISharedPacketOut, IntoPacket<IGenericPacketOut>
+    public class SendMessage : SharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public string Sender { get; init; }
         public string Contents { get; init; }

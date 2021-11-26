@@ -1,6 +1,6 @@
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct MatchDisband : ISharedPacketOut, IntoPacket<IB904PacketOut>
+    public class MatchDisband : SharedPacketOut, IntoPacket<IB904PacketOut>
     {
         public int MatchID { get; set; }
         

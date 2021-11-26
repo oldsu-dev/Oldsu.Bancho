@@ -1,34 +1,36 @@
 ﻿using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.Exceptions.ChatChannel;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.Exceptions.PacketHandling;
+using Oldsu.Bancho.GameLogic;
 using Oldsu.Enums;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class SendMessage : ISharedPacketIn
     {
-        public string Contents { get; init; }
-        public string Target { get; init; }
+        public string? Contents { get; init; }
+        public string? Target { get; init; }
         
-        public async Task Handle(UserContext context, Connection _)
+        public void Handle(HubEventContext context)
         {
-            switch (Target)
+            if (Contents == null || Target == null)
+                throw new NullStringReceivedException();
+            
+            if (Target.StartsWith('#') && context.Hub.AvailableChatChannels.TryGetValue(Target, out var channel))
+                channel.SendMessage(context.User, Contents);
+            else if (Target == "#lobby")
+                context.Hub.Lobby.SendMessage(context.User, Contents);
+            else if (Target == "#multiplayer")
             {
-                case "#multiplayer":
-                    await context.Dependencies.Get<ILobbyProvider>()
-                        .SendMessageToMatch(context.UserID, context.Username, Contents);
-                    break;
-                case "#lobby":                    
-                    await context.Dependencies.Get<ILobbyProvider>()
-                        .SendMessageToLobby(context.Username, Contents);
-                    break;
-                default:
-                    var channel = await context.Dependencies.Get<IChatProvider>().GetChannel(Target, context.Privileges);
-                    if (channel is not null)
-                        await channel.SendMessage(context.Username, Contents);
-                    break;
+                if (context.User.Match == null)
+                    throw new UserNotInMatchException();
+                
+                context.User.Match.SendMessage(context.User, Contents);
             }
+            else
+                throw new InvalidChannelException();
         }
     }
 }

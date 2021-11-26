@@ -1,6 +1,6 @@
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class ChannelLeft : ISharedPacketOut, IntoPacket<IGenericPacketOut>
+    public class ChannelLeft : SharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public string ChannelName { get; set; }
 

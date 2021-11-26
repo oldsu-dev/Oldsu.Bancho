@@ -1,8 +1,10 @@
 using System.Threading.Tasks;
+using Microsoft.Extensions.Options;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Exceptions.ChatChannel;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -10,41 +12,24 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public string ChannelName { get; set; }
 
-        public async Task Handle(UserContext userContext, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            switch (ChannelName)
-            {
-                case "#multiplayer":
-                {
-                    var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
-                    
-                    await userContext.SubscriptionManager.SubscribeToChannel(
-                        await lobbyProvider.GetMatchChatChannel(userContext.UserID));
+            if (ChannelName == "#lobby")
+                return;
 
-                    await connection.SendPacketAsync(new BanchoPacket(new ChannelJoined()
-                        {ChannelName = "#multiplayer"}));
-                } break;
-
-                case "#lobby":
-                {
-                    var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
-                    
-                    await userContext.SubscriptionManager.SubscribeToChannel(
-                        await lobbyProvider.GetLobbyChatChannel());
-
-                    await connection.SendPacketAsync(new BanchoPacket(new ChannelJoined()
-                        {ChannelName = "#lobby"}));
-                } break;
-
-                default:
-                {
-                    var chatProvider = userContext.Dependencies.Get<IChatProvider>();
-                    
-                    var channel = await chatProvider.GetChannel(ChannelName, userContext.Privileges);
-                    if (channel is not null)
-                        await userContext.JoinChannel(channel);
-                } break;
+            if (ChannelName == "#multiplayer")
+            { 
+                if (context.User.Match == null)
+                    throw new UserNotInMatchException();
+                
+                context.User.SendPacket(new ChannelJoined {ChannelName = "#multiplayer"});
+                return;
             }
+
+            if (context.Hub.AvailableChatChannels.TryGetValue(ChannelName, out var channel))
+                channel.Join(context.User);
+            else
+                throw new InvalidChannelException();
         }
     }
 }

@@ -1,14 +1,16 @@
-using System.Threading.Tasks;
-using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
-using Oldsu.Enums;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public struct MatchSkip : ISharedPacketIn
     {
-        public Task Handle(UserContext userContext, Connection connection) =>
-            userContext.Dependencies.Get<ILobbyProvider>().MatchSkip(userContext.UserID);
+        public void Handle(HubEventContext context)
+        {
+            if (context.User.Match == null)
+                throw new UserNotInMatchException();
+            
+            context.User.Match.Skip(context.User);
+        }
     }
 }
