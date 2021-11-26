@@ -632,9 +632,12 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
 
         public void ScoreUpdate(User invoker, ScoreFrame scoreFrame)
         {
-            MatchSlot slot = GetSlotByPlayer(invoker);
+            uint slotIndex = GetSlotIndexByPlayer(invoker);
+            MatchSlot slot = MatchSlots[slotIndex];
+
+            scoreFrame.SlotID = (byte)slotIndex;
             slot.LastScoreFrame = scoreFrame;
-            
+
             BroadcastToPlayers(new MatchScoreUpdate{ScoreFrame = scoreFrame});
         }
     }
