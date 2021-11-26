@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Bancho.Packet.Shared.Out;
 
 namespace Oldsu.Bancho.GameLogic.Events
@@ -18,6 +20,7 @@ namespace Oldsu.Bancho.GameLogic.Events
                     .Handle(new HubEventContext(context.Hub, context.HubEventLoop, oldUser));
             }
 
+            
             foreach (var channel in context.Hub.AvailableChatChannels.Values)
             {
                 if (channel.AutoJoin)
@@ -32,6 +35,7 @@ namespace Oldsu.Bancho.GameLogic.Events
             }
             
             context.Hub.UserPanelManager.RegisterUser(context.User);
+            context.HubEventLoop.SendEvent(new HubEventPacket(context.User, new UserStatsRequest()));
         }
     }
 }

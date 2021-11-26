@@ -19,7 +19,6 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                 User = user.UserInfo
             };
         
-
         IB904PacketOut IntoPacket<IB904PacketOut>.IntoPacket()
         {
             Packet.Out.B904.HandleOsuUpdateOnlineUser packet;

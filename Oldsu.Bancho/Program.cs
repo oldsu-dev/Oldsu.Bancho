@@ -7,8 +7,13 @@ using Oldsu.Enums;
 using Oldsu.Logging;
 using Oldsu.Logging.Strategies;
 
+#if DEBUG
+var loggingManager = new LoggingManager(new NoLog());
+#else
 var loggingManager = new LoggingManager(new MongoDbWriter(
     Environment.GetEnvironmentVariable("OLDSU_MONGO_DB_CONNECTION_STRING")!));
+#endif
+
 
 UserPanelManager userPanelManager = new UserPanelManager(loggingManager);
 Lobby lobby = new Lobby(loggingManager);

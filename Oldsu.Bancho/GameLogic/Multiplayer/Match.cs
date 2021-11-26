@@ -90,7 +90,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             #endregion
         }
         
-        private void BroadcastToPlayersButOne(SharedPacketOut packet, User excluded)
+        private void BroadcastToPlayersBut(SharedPacketOut packet, Predicate<MatchSlot> predicate)
         {
             CachedBanchoPacket cachedPacket = new CachedBanchoPacket(packet);
 
@@ -101,7 +101,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
                 if (slot.User == null)
                     continue;
 
-                if (slot.User.UserID == excluded.UserID)
+                if (predicate(slot))
                     continue;
                 
                 MatchSlots[i].User?.SendPacket(cachedPacket);
@@ -175,6 +175,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             NotifyUpdate();
             
             MatchSlots[newSlotIndex].SetUser(user);
+            user.Match = this;
             
             user.SendPacket(new MatchJoinSuccess{Match = this});
             user.SendPacket(new ChannelAvailable{ChannelName = "#multiplayer"});
@@ -241,8 +242,9 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             
             #endregion
             
-            BroadcastToPlayersButOne(
-                new SendMessage{Contents = contents, Sender = sender.Username, Target = "#multiplayer"}, sender);
+            BroadcastToPlayersBut(
+                new SendMessage{Contents = contents, Sender = sender.Username, Target = "#multiplayer"}, 
+                slot => slot.UserID == sender.UserID);
         }
         
         public void Start(User invoker)
@@ -269,6 +271,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             #endregion
             
             NotifyUpdate();
+            BroadcastToPlayersBut(new MatchStart{Match = this}, slot => slot.SlotStatus != SlotStatus.Playing);
         }
         
         public void MoveSlot(User invoker, uint newSlotId)
