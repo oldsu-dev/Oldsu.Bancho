@@ -511,8 +511,11 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             
                 _loggingManager.LogInfoSync<Match>(
                     "The match is ended",
-                    dump: new { FinalResult = MatchSlots.Select(slot => slot.LastScoreFrame)
-                        .OrderBy(frame => frame?.Score ?? 0).ToArray() });
+                    dump: new { FinalResult = MatchSlots
+                        .Where(slot => slot.LastScoreFrame != null)
+                        .Select(slot => new { slot.UserID, slot.LastScoreFrame })
+                        .OrderByDescending(frame => frame.LastScoreFrame!.Score).ToArray() 
+                    });
             
                 #endregion
                 
