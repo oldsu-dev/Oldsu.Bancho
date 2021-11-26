@@ -1,4 +1,5 @@
-﻿using Oldsu;
+﻿using System;
+using Oldsu;
 using Oldsu.Bancho;
 using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.GameLogic.Multiplayer;
@@ -6,7 +7,8 @@ using Oldsu.Enums;
 using Oldsu.Logging;
 using Oldsu.Logging.Strategies;
 
-var loggingManager = new LoggingManager(new NoLog());
+var loggingManager = new LoggingManager(new MongoDbWriter(
+    Environment.GetEnvironmentVariable("OLDSU_MONGO_DB_CONNECTION_STRING")!));
 
 UserPanelManager userPanelManager = new UserPanelManager(loggingManager);
 Lobby lobby = new Lobby(loggingManager);
