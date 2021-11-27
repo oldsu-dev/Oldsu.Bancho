@@ -158,15 +158,14 @@ namespace Oldsu.Bancho
             }
         }
 
-        private async void HandleUserDisconnection(User user)
+        private async void HandleUserDisconnection(Connection connection, User user)
         {
             IDisposable handle = await _connectionLock.LockAsync();
-            
+
+            _connections.Remove(connection.Guid);
+
             var disconnectEvent = new HubEventDisconnect(user);
-            disconnectEvent.OnCompletion += () =>
-            {
-                handle.Dispose();
-            };
+            disconnectEvent.OnCompletion += () => { handle.Dispose(); };
             
             _hubEventLoop.SendEvent(disconnectEvent);
         }
@@ -283,7 +282,7 @@ namespace Oldsu.Bancho
             
             connection.Authenticate(version);
             connection.OnPacket += (_, packet) => HandlePacket(user, packet);
-            connection.Disconnected += (_,_) => HandleUserDisconnection(user);
+            connection.Disconnected += (connection,_) => HandleUserDisconnection((Connection)connection!, user);
             
             // Handshake
             
