@@ -45,12 +45,17 @@ namespace Oldsu.Bancho
                 {
                     foreach (var conn in _connections.Values.Where(c => c.IsTimedout))
                     {
-                        await _loggingManager.LogInfo<Server>("Client timed out.", null, new
+                        if (conn.IsZombie)
+                            _connections.Remove(conn.Guid);
+                        else
                         {
-                            conn.IP
-                        });
+                            _loggingManager.LogInfoSync<Server>("Client timed out.", null, new
+                            {
+                                conn.IP
+                            });
 
-                        conn.ForceDisconnect();
+                            conn.ForceDisconnect();
+                        }
                     }
                 }
 
@@ -161,8 +166,6 @@ namespace Oldsu.Bancho
         private async void HandleUserDisconnection(Connection connection, User user)
         {
             IDisposable handle = await _connectionLock.LockAsync();
-
-            _connections.Remove(connection.Guid);
 
             var disconnectEvent = new HubEventDisconnect(user);
             disconnectEvent.OnCompletion += () => { handle.Dispose(); };

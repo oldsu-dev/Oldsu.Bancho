@@ -244,8 +244,10 @@ namespace Oldsu.Bancho.Connections
                     return;
                 }
             }
+            
+            _sendingCompletionSource.TrySetException(new TaskCanceledException());
 
-            await Task.Delay(500); // Wait a bit so that everything buffered gets released
+            await Task.Delay(500);
             
             RawConnection.Close();
             HandleDisconnection();
