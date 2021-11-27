@@ -33,6 +33,9 @@ namespace Oldsu.Bancho.GameLogic
                 throw new AlreadySpectatingException();
             
             entity.SpectatingEntity = this;
+            
+            User.SendPacket(new HostSpectatorJoined {UserID = (int)entity.User.UserID});
+            BroadcastToSpectators(new FellowSpectatorJoined {UserID = (int)entity.User.UserID});
         }
 
         public void RemoveSpectator(UserPanelManagerEntity entity)
@@ -41,6 +44,9 @@ namespace Oldsu.Bancho.GameLogic
                 throw new NotSpectatingException();
 
             entity.SpectatingEntity = null;
+            
+            User.SendPacket(new HostSpectatorLeft() {UserID = (int)entity.User.UserID});
+            BroadcastToSpectators(new FellowSpectatorLeft {UserID = (int)entity.User.UserID});
         }
         
         public void BroadcastToSpectators(SharedPacketOut packetOut)
@@ -108,6 +114,9 @@ namespace Oldsu.Bancho.GameLogic
 
         public void UnregisterUser(User user)
         {
+            _entitiesByUserID.Remove(user.UserID);
+            _entitiesByUsername.Remove(user.Username);
+            
             #region Logging
 
             _loggingManager.LogInfoSync<UserPanelManager>("User unregistered", dump: new
@@ -117,30 +126,46 @@ namespace Oldsu.Bancho.GameLogic
 
             #endregion
             
-            _entitiesByUserID.Remove(user.UserID);
-            _entitiesByUsername.Remove(user.Username);
-            
             BroadcastPacket(new UserQuit {UserID = (int)user.UserID});
         }
 
         public void StartSpectating(User user, uint targetUserId)
         {
-            UserPanelManagerEntity entity = _entitiesByUserID[user.UserID];
+            UserPanelManagerEntity selfEntity = _entitiesByUserID[user.UserID];
             UserPanelManagerEntity targetEntity = _entitiesByUserID[targetUserId];
             
-            entity.AddSpectator(targetEntity);
-            entity.BroadcastToSpectators(new FellowSpectatorJoined{UserID = (int)user.UserID});
+            targetEntity.AddSpectator(selfEntity);
+            
+            #region Logging
+            
+            _loggingManager.LogInfoSync<UserPanelManager>(
+                "Started spectating", dump: new
+                {
+                    user.UserID,
+                    TargetUserID = targetUserId
+                });
+                
+            #endregion
         }
  
         public void StopSpectating(User user)
         {
-            UserPanelManagerEntity entity = _entitiesByUserID[user.UserID];
+            UserPanelManagerEntity selfEntity = _entitiesByUserID[user.UserID];
 
-            if (entity.SpectatingEntity == null)
+            if (selfEntity.SpectatingEntity == null)
                 throw new NotSpectatingException();
 
-            entity.RemoveSpectator(entity.SpectatingEntity);
-            entity.BroadcastToSpectators(new FellowSpectatorLeft{UserID = (int)user.UserID});
+            selfEntity.SpectatingEntity.RemoveSpectator(selfEntity);
+            
+            #region Logging
+            
+            _loggingManager.LogInfoSync<UserPanelManager>(
+                "Stopped spectating", dump: new
+                {
+                    user.UserID
+                });
+                
+            #endregion
         }
         
         public bool IsOnline(uint userId) =>
