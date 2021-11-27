@@ -33,6 +33,31 @@ namespace Oldsu.Bancho
         private readonly WebSocketServer _server;
         private readonly LoggingManager _loggingManager;
         
+        private async Task PingWatchdog(CancellationToken ct = default)
+        {
+
+            for (;;)
+            {
+                if (ct.IsCancellationRequested)
+                    return;
+
+                using (await _connectionLock.LockAsync())
+                {
+                    foreach (var conn in _connections.Values.Where(c => c.IsTimedout))
+                    {
+                        await _loggingManager.LogInfo<Server>("Client timed out.", null, new
+                        {
+                            conn.IP
+                        });
+
+                        conn.ForceDisconnect();
+                    }
+                }
+
+                await Task.Delay(1000, ct);
+            }
+        }
+        
         /// <summary>
         ///     Initializes the websocket class
         /// </summary>
@@ -285,7 +310,7 @@ namespace Oldsu.Bancho
                 Console.WriteLine(e);
             }
             
-            await _hubEventLoop.Run();
+            await Task.WhenAny(_hubEventLoop.Run(), PingWatchdog(ct));
         }
     }
 }
