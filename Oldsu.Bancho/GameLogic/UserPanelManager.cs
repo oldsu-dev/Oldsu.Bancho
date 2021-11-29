@@ -132,6 +132,10 @@ namespace Oldsu.Bancho.GameLogic
         public void StartSpectating(User user, uint targetUserId)
         {
             UserPanelManagerEntity selfEntity = _entitiesByUserID[user.UserID];
+
+            if (selfEntity.SpectatingEntity != null)
+                StopSpectating(user);
+            
             UserPanelManagerEntity targetEntity = _entitiesByUserID[targetUserId];
             
             targetEntity.AddSpectator(selfEntity);
