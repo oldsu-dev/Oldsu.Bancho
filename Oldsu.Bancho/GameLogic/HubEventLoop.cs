@@ -44,7 +44,7 @@ namespace Oldsu.Bancho.GameLogic
 
                     hubEvent.Completed();
                 }
-                catch (OldsuException exception)
+                catch (Exception exception) when (exception is OldsuException)
                 {
                     #region Logging
 
@@ -54,13 +54,27 @@ namespace Oldsu.Bancho.GameLogic
                         new {hubEvent.Invoker.UserID});
 
                     #endregion
-                    
+
 
                     // Disconnect and make messages unprocessable
                     hubEvent.Invoker.Errored = true;
                     SendEvent(new HubEventDisconnect(hubEvent.Invoker));
-                    
+
                     Debug.WriteLine(exception);
+                }
+                catch (Exception exception) when (exception is not OldsuException)
+                {
+                    #region Logging
+
+                    _loggingManager.LogFatalSync<HubEventLoop>(
+                        "A fatal exception occurred while processing an event. The server may be in an unstable state",
+                        exception,
+                        new {hubEvent.Invoker.UserID});
+
+                    #endregion
+
+                    hubEvent.Invoker.Errored = true;
+                    SendEvent(new HubEventDisconnect(hubEvent.Invoker));
                 }
             }
         }

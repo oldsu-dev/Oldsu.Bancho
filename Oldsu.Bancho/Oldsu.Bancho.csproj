@@ -17,7 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="GameLogic\Exceptions" />
     <Folder Include="Packet\Objects" />
   </ItemGroup>
 

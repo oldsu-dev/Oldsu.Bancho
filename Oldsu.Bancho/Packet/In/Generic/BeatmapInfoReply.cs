@@ -9,6 +9,6 @@ namespace Oldsu.Bancho.Packet.Objects.B904
         [BanchoSerializable()]
         public List<string> RawInfo;
 
-        public ISharedPacketIn IntoPacket() => new Shared.In.BeatmapInfoRequest();
+        public ISharedPacketIn IntoPacket() => new Shared.In.BeatmapInfoRequest {Filenames = RawInfo.ToArray()};
     }
 }
