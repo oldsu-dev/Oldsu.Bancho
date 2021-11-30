@@ -1,6 +1,6 @@
 ﻿namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct HostSpectatorJoined : ISharedPacketOut, IntoPacket<IGenericPacketOut>
+    public class HostSpectatorJoined : SharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public int UserID { get; init; }
 

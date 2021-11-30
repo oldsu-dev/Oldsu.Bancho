@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Exceptions.ChatChannel;
+using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -10,34 +10,15 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public string ChannelName { get; set; }
 
-        public async Task Handle(UserContext userContext, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            switch (ChannelName)
-            {
-                case "#multiplayer":
-                    await userContext.SubscriptionManager.UnsubscribeFromChannel("#multiplayer");
-                    await connection.SendPacketAsync(new BanchoPacket(new ChannelLeft()
-                    {
-                        ChannelName = "#multiplayer"
-                    }));
-                    break;
-                
-                case "lobby":
-                    await userContext.SubscriptionManager.UnsubscribeFromChannel("#lobby");
-                    await connection.SendPacketAsync(new BanchoPacket(new ChannelLeft()
-                    {
-                        ChannelName = "#lobby"
-                    }));
-                    break;
-                default:
-                {
-                    var chatProvider = userContext.Dependencies.Get<IChatProvider>();
-                    
-                    var channel = await chatProvider.GetChannel(ChannelName, userContext.Privileges);
-                    if (channel is not null)
-                        await userContext.LeaveChannel(channel);
-                } break;
-            }
+            if (ChannelName is "#multiplayer" or "#lobby")
+                return;
+            
+            if (context.Hub.AvailableChatChannels.TryGetValue(ChannelName, out var channel))
+                channel.Leave(context.User);
+            else
+                throw new InvalidChannelException();
         }
     }
 }

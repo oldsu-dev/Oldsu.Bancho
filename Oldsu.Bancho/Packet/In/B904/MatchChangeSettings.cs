@@ -6,13 +6,13 @@ namespace Oldsu.Bancho.Packet.In.B904
     [BanchoPacket(42, Version.B904, BanchoPacketType.In)]
     public struct MatchChangeSettings : IntoPacket<ISharedPacketIn>
     {
-        [BanchoSerializable] public Match Match;
+        [BanchoSerializable] public MatchState MatchState;
         
         public ISharedPacketIn IntoPacket()
         {
             return new Shared.In.MatchChangeSettings
             {
-                MatchSettings = Match.ToMatchSettings()
+                MatchSettings = MatchState.ToMatchSettings()
             };
         }
     }

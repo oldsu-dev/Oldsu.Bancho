@@ -1,26 +1,24 @@
 ﻿using Oldsu.Bancho.Packet.Shared.In;
-using Oldsu.Bancho.User;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct SetPresence : ISharedPacketOut, IntoPacket<IB904PacketOut>
+    public class SetPresence : SharedPacketOut, IntoPacket<IB904PacketOut>
     {
         public UserInfo User { get; init; }
         public Presence Presence { get; init; }
         public StatsWithRank? Stats { get; init; }
         public Activity Activity { get; init; }
 
-        public static SetPresence FromUserData(UserData userData) =>
+        public static SetPresence FromUserData(User user) =>
             new SetPresence
             {
-                Activity = userData.Activity,
-                Presence = userData.Presence,
-                Stats = userData.Stats,
-                User = userData.UserInfo
+                Activity = user.Activity,
+                Presence = user.Presence,
+                Stats = user.Stats,
+                User = user.UserInfo
             };
         
-
         IB904PacketOut IntoPacket<IB904PacketOut>.IntoPacket()
         {
             Packet.Out.B904.HandleOsuUpdateOnlineUser packet;

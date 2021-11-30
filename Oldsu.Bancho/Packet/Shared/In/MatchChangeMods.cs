@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -9,7 +9,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public int Mods { get; set; }
 
-        public Task Handle(UserContext userContext, Connection connection) =>
-            userContext.Dependencies.Get<ILobbyProvider>().MatchChangeMods(userContext.UserID, (short) Mods);
+        public void Handle(HubEventContext context)
+        {
+            if (context.User.Match == null)
+                throw new UserNotInMatchException();
+            
+            context.User.Match.ChangeMods(context.User, (short)Mods);
+        }
     }
 }

@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -9,13 +9,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public uint SlotID { get; set; }
 
-        public async Task Handle(UserContext userContext, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            var lobbyProvider = userContext.Dependencies.Get<ILobbyProvider>();
-            var userRequestProvider = userContext.Dependencies.Get<IUserRequestProvider>();
+            if (context.User.Match == null)
+                throw new UserNotInMatchException();
             
-            if ((await lobbyProvider.MatchLockSlot(userContext.UserID, SlotID)) is { } kickUser)
-                await userRequestProvider.QuitMatch(kickUser);
+            context.User.Match.LockSlot(context.User, SlotID);
         }
     }
 }

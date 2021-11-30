@@ -1,9 +1,6 @@
-using System.Threading.Tasks;
-using Oldsu.Bancho.Connections;
-using Oldsu.Bancho.Multiplayer;
-using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
+using Oldsu.Bancho.GameLogic.Multiplayer;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -11,18 +8,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public MatchSettings MatchSettings { get; set; }
 
-        public async Task Handle(UserContext userContext, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            var match = await userContext.Dependencies.Get<ILobbyProvider>()
-                .CreateMatch(userContext.UserID, MatchSettings);
+            if (context.User.Match != null)
+                throw new UserAlreadyInMatchException();
             
-            if (match is null)
-                await connection.SendPacketAsync(new BanchoPacket(new MatchJoinFail()));
-            else
-            {
-                await connection.SendPacketAsync(new BanchoPacket(new MatchJoinSuccess {MatchState = match}));
-                await connection.SendPacketAsync(new BanchoPacket(new ChannelAvailable() {ChannelName = "#multiplayer"}));
-            }
+            context.Hub.Lobby.TryCreateMatch(context.User, MatchSettings);
         }
     }
 }

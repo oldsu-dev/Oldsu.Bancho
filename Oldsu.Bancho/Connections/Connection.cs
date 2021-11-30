@@ -1,16 +1,19 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Fleck;
-
+using Nito.AsyncEx;
+using Oldsu.Bancho.Packet;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Connections
 {
     public class LockStateHolder
     {
-        private TaskCompletionSource? _awaiter { get; set; }
+        private TaskCompletionSource? _awaiter;
         
         public Task WaitStateLock()
         {
@@ -23,53 +26,155 @@ namespace Oldsu.Bancho.Connections
         
         public void UnlockState()
         {
-            _awaiter!.SetResult();
+            _awaiter?.SetResult();
             _awaiter = null;
         }
     }
+
+    public enum ConnectionState
+    {
+        Unauthenticated,
+        WaitingAuthentication,
+        Authenticated
+    }
     
-    public abstract class Connection
+    public class Connection : IAsyncDisposable
     {
         protected IWebSocketConnection RawConnection { get; }
-        public IWebSocketConnectionInfo ConnectionInfo => RawConnection.ConnectionInfo;
         
-        private DateTime _pingTimeoutWindow = DateTime.MinValue;
-
-        public bool IsZombie => _disconnectRequest;
-
-        public bool PingTimeout => DateTime.Now > _pingTimeoutWindow;
-
+        public LockStateHolder LockStateHolder { get; private set; }
+        public Version Version { get; private set; }
+        public ConnectionState State { get; private set; }
+        
         public event EventHandler? Disconnected;
-        
-        public LockStateHolder LockStateHolder { get; protected set; }
+        public event EventHandler? Ready;
+        public event EventHandler<ISharedPacketIn>? OnPacket;
+        public event EventHandler<string>? OnString;
+        public event EventHandler? Timedout;
 
-
-        public Version Version { get;  set; } 
+        public IWebSocketConnectionInfo ConnectionInfo => RawConnection.ConnectionInfo;
+        public bool IsZombie => _disconnectRequest;
         public Guid Guid { get; }
 
         public string IP => ConnectionInfo.Headers.TryGetValue("CF-Connecting-IP", out var ip)
             ? ip
             : ConnectionInfo.ClientIpAddress;
 
-        public Connection(Guid guid, IWebSocketConnection webSocketConnection, int pingInterval)
+        public Connection(IWebSocketConnection webSocketConnection)
         {
+            _cancellationTokenSource = new CancellationTokenSource();
             RawConnection = webSocketConnection;
-            Guid = guid;
+            
+            RawConnection.OnBinary += HandleBinary;
             RawConnection.OnClose += ForceDisconnect;
+            RawConnection.OnMessage += HandleMessage;
+            RawConnection.OnOpen += OnOpen;
 
-            _sendPacketSemaphore = new SemaphoreSlim(1, 1);
-            ResetPing(pingInterval);
+            State = ConnectionState.Unauthenticated;
+            Version = Version.NotApplicable;
+            Guid = Guid.NewGuid();
 
             _sendingCompletionSource = new TaskCompletionSource();
+            
+            _sendLock = new AsyncLock();
+            _receiveLock = new AsyncLock();
+            
             LockStateHolder = new LockStateHolder();
         }
-
-        protected void ResetPing(int nextPeriod) =>
-            _pingTimeoutWindow = DateTime.Now + new TimeSpan(0,0,0,0, nextPeriod);
-
-        private readonly SemaphoreSlim _sendPacketSemaphore;
         
-        public Task SendPacketAsync(BanchoPacket packet) => Task.Factory.StartNew(() => InternalSendPacket(packet));
+        private void OnOpen()
+        {
+            if (_disconnectRequest)
+                return;
+            
+            Ready?.Invoke(this, EventArgs.Empty);
+            
+            ResetPing(UnauthenticatedPingInterval);
+        }
+
+        private async void HandleMessage(string message)
+        {
+            await LockStateHolder.WaitStateLock();
+            
+            if (_disconnectRequest)
+                return;
+            
+            using (await _receiveLock.LockAsync())
+            {
+                switch (State)
+                {
+                    case ConnectionState.Unauthenticated:
+                        OnString?.Invoke(this, message);
+                        
+                        State = ConnectionState.WaitingAuthentication;
+                        LockStateHolder.LockState();
+                        
+                        break;
+                    default:
+                        await Disconnect(true);
+                        break;
+                }
+            }
+        }
+
+        private const int UnauthenticatedPingInterval = 10_000;
+        private const int AuthenticatedPingInterval = 35_000;
+        
+        private async void HandleBinary(byte[] data)
+        {
+            await LockStateHolder.WaitStateLock();
+            
+            if (_disconnectRequest)
+                return;
+
+            using (await _receiveLock.LockAsync())
+            {
+                switch (State)
+                {
+                    case ConnectionState.Authenticated:
+                        ResetPing(AuthenticatedPingInterval);
+                        
+                        var obj = BanchoSerializer.Deserialize(data, this.Version);
+                        if (obj == null)
+                        {
+                            return;
+                        }
+
+                        ISharedPacketIn packet = ((IntoPacket<ISharedPacketIn>) obj).IntoPacket();
+                        
+                        Debug.WriteLine(packet);
+                        
+                        OnPacket?.Invoke(this, packet);
+                        break;
+                    default:
+                        await Disconnect(true);
+                        break;
+                }
+            }
+        }
+
+        private CancellationTokenSource? _pingTaskCancellationSource;
+        
+        private void ResetPing(int nextPeriod)  
+        {
+            _pingTaskCancellationSource?.Cancel();
+            _pingTaskCancellationSource = new CancellationTokenSource();
+
+            Task.Run(async () =>
+            {
+                await Task.Delay(nextPeriod, _pingTaskCancellationSource.Token);
+                Timedout?.Invoke(this, EventArgs.Empty);
+                await Disconnect(true);
+            });
+        }
+
+        private void CancelPing() =>
+            _pingTaskCancellationSource?.Cancel();
+        
+        private readonly AsyncLock _sendLock;
+        private readonly AsyncLock _receiveLock;
+
+        public async void SendPacket(ISerializable packet) => await InternalSendPacket(packet);
         
         private readonly TaskCompletionSource _sendingCompletionSource;
 
@@ -87,55 +192,66 @@ namespace Oldsu.Bancho.Connections
             _sendingCompleted = true;
             CheckCompletionState();
         }
-        
-        public async Task InternalSendPacket(BanchoPacket packet)
+
+        public void Authenticate(Version version)
         {
-            await _sendPacketSemaphore.WaitAsync();
+            State = ConnectionState.Authenticated;
+            Version = version;
+            ResetPing(AuthenticatedPingInterval);
+        }
+        
+        public async Task InternalSendPacket(ISerializable packet)
+        {
             await LockStateHolder.WaitStateLock();
             
-            if (_sendingCompleted)
-                return;
-
             Interlocked.Increment(ref _waitingPackets);
 
-            try
+            using (await _sendLock.LockAsync())
             {
-                if (!RawConnection!.IsAvailable)
+                if (_sendingCompleted)
                     return;
 
-                var data = packet.GetDataByVersion(this.Version);
-                if (data == null || data.Length == 0)
-                    return;
+                try
+                {
+                    if (!RawConnection.IsAvailable)
+                        return;
 
-                await RawConnection.Send(data);
-            }
-            catch (ConnectionNotAvailableException exception)
-            {
-                Debug.WriteLine(exception);
-                //Disconnect();
-            }
-            finally
-            {
-                _sendPacketSemaphore.Release();
-                
-                Interlocked.Decrement(ref _waitingPackets);
-                CheckCompletionState();
+                    var data = packet.SerializeDataByVersion(this.Version);
+                    if (data == null || data.Value.Length == 0)
+                        return;
+
+                    await RawConnection.Send(data.Value);
+                }
+                catch (ConnectionNotAvailableException exception)
+                {
+                    Debug.WriteLine(exception);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _waitingPackets);
+                    CheckCompletionState();
+                }
             }
         }
 
-        private volatile bool _disconnectRequest = false;
+        private volatile bool _disconnectRequest;
 
         public async void ForceDisconnect()
         {
-            Disconnect(true);
+            await Disconnect(true);
         }
         
         /// <summary>
         ///     Disconnects client from the server.
         /// </summary>
-        public async void Disconnect(bool force)
+        public async Task Disconnect(bool force)
         {
             await LockStateHolder.WaitStateLock();
+
+            if (_disconnectRequest)
+                return;
+
+            _disconnectRequest = true;
             
             CompleteSending();
             
@@ -152,22 +268,37 @@ namespace Oldsu.Bancho.Connections
             }
             
             _sendingCompletionSource.TrySetException(new TaskCanceledException());
+
+            await Task.Delay(500);
             
             RawConnection.Close();
             HandleDisconnection();
         }
 
-        private async void HandleDisconnection()
+        private void HandleDisconnection()
         {
-            if (_disconnectRequest)
-                return;
-
-            _disconnectRequest = true;
+            if (!_disconnectRequest)
+                _disconnectRequest = true;
             
             Disconnected?.Invoke(this, EventArgs.Empty);
-            ClearEventSubscriptions();
+            CancelPing();
         }
 
-        protected virtual void ClearEventSubscriptions() { }
+        private readonly CancellationTokenSource _cancellationTokenSource;
+
+        public void StopReceiving()
+        {
+            _cancellationTokenSource.Cancel();
+        }
+        
+        public async ValueTask DisposeAsync()
+        {            
+            await Disconnect(true);
+            
+            RawConnection.OnBinary -= HandleBinary;
+            RawConnection.OnClose -= ForceDisconnect;
+            RawConnection.OnMessage -= HandleMessage;
+            RawConnection.OnOpen -= OnOpen;
+        }
     }
 }

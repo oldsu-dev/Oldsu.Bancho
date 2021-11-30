@@ -2,27 +2,31 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Enums;
+using Oldsu.Bancho.GameLogic;
+using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
 using Oldsu.Enums;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class UserStatsRequest : ISharedPacketIn
     {
-        public async Task Handle(UserContext userContext, Connection _)
+        public void Handle(HubEventContext context)
         {
-            var userProvider = userContext.Dependencies.Get<IUserStateProvider>();
-            var userData = await userProvider.GetUser(userContext.UserID);
-            
-            var gamemode = userData!.Activity is ActivityWithBeatmap activityWithBeatmap
+            var gamemode = context.User.Activity is ActivityWithBeatmap activityWithBeatmap
                 ? activityWithBeatmap.GameMode : (byte)Mode.Standard;
-            
-            await using var database = new Database();
-            var stats = await database.GetStatsWithRankAsync(userContext.UserID, gamemode);
-            
-            await userContext.Dependencies.Get<IUserStateProvider>().SetStatsAsync(userContext.UserID, (Mode)gamemode, stats);
+
+            Task.Run(async () =>
+            {
+                await using var database = new Database();
+                
+                var stats = await database.GetStatsWithRankAsync(
+                    context.User.UserID, gamemode, context.User.CancellationToken);
+                
+                context.HubEventLoop.SendEvent(new HubEventAction(context.User,
+                    context => context.Hub.UserPanelManager.UpdateStats(context.User, stats))
+                );
+            });
         }
     }
 }

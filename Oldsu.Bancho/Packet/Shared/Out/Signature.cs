@@ -1,6 +1,6 @@
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class Signature : ISharedPacketOut, IntoPacket<IGenericPacketOut>
+    public class Signature : SharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public string ServerName { get; set; }
         public string Version { get; set; }

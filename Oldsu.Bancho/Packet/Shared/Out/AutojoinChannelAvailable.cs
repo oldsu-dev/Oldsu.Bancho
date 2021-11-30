@@ -1,6 +1,6 @@
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public struct AutojoinChannelAvailable : ISharedPacketOut, IntoPacket<IGenericPacketOut>
+    public class AutojoinChannelAvailable : SharedPacketOut, IntoPacket<IGenericPacketOut>
     {
         public string ChannelName { get; set; }
 

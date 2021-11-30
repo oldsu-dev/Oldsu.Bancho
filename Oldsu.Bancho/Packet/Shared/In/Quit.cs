@@ -1,17 +1,16 @@
 ﻿using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.GameLogic;
+using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Bancho.Packet.Shared.Out;
-using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
     public class Quit : ISharedPacketIn
     {
-        public Task Handle(UserContext context, Connection connection)
+        public void Handle(HubEventContext context)
         {
-            connection.Disconnect(false);
-            
-            return Task.CompletedTask;
+            context.HubEventLoop.SendEvent(new HubEventDisconnect(context.User));
         }
     }
 }

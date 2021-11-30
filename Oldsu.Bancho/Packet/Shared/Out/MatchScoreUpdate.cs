@@ -2,7 +2,7 @@ using Oldsu.Bancho.Objects;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
 {
-    public class MatchScoreUpdate : ISharedPacketOut, IntoPacket<IB904PacketOut>
+    public class MatchScoreUpdate : SharedPacketOut, IntoPacket<IB904PacketOut>
     {
         public ScoreFrame ScoreFrame { get; set; }
 

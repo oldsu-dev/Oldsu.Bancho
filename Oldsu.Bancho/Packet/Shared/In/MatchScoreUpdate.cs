@@ -1,8 +1,8 @@
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Exceptions.Lobby;
+using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.Objects;
-using Oldsu.Bancho.Providers;
-using Oldsu.Bancho.User;
 
 namespace Oldsu.Bancho.Packet.Shared.In
 {
@@ -10,7 +10,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public ScoreFrame ScoreFrame { get; set; }
 
-        public Task Handle(UserContext userContext, Connection connection) =>
-            userContext.Dependencies.Get<ILobbyProvider>().MatchScoreUpdate(userContext.UserID, ScoreFrame);
+        public void Handle(HubEventContext context)
+        {
+            if (context.User.Match == null)
+                throw new UserNotInMatchException();
+            
+            context.User.Match.ScoreUpdate(context.User, ScoreFrame);
+        }
     }
 }
