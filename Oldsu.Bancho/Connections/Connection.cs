@@ -253,8 +253,6 @@ namespace Oldsu.Bancho.Connections
 
             _disconnectRequest = true;
             
-            CancelPing();
-            
             CompleteSending();
             
             if (!force)
@@ -279,7 +277,11 @@ namespace Oldsu.Bancho.Connections
 
         private void HandleDisconnection()
         {
+            if (!_disconnectRequest)
+                _disconnectRequest = true;
+            
             Disconnected?.Invoke(this, EventArgs.Empty);
+            CancelPing();
         }
 
         private readonly CancellationTokenSource _cancellationTokenSource;
