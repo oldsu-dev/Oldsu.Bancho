@@ -23,7 +23,7 @@ namespace Oldsu.Bancho
         public string Username => UserInfo.Username;
         public uint UserID => UserInfo.UserID;
         
-        private Connection _connection;
+        private readonly Connection _connection;
         
         public User(
             UserInfo userInfo,

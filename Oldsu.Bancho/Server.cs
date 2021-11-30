@@ -17,7 +17,6 @@ using Oldsu.Logging;
 using Oldsu.Types;
 using Oldsu.Utils.Location;
 using Action = Oldsu.Enums.Action;
-using Channel = System.Threading.Channels.Channel;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho
@@ -26,44 +25,11 @@ namespace Oldsu.Bancho
     {
         private const string ServerVersion = "Alpha 0.1";
 
-        private readonly Dictionary<Guid, Connection> _connections;
         private readonly AsyncLock _connectionLock;
 
         private readonly HubEventLoop _hubEventLoop;
         private readonly WebSocketServer _server;
         private readonly LoggingManager _loggingManager;
-        
-        private async Task PingWatchdog(CancellationToken ct = default)
-        {
-
-            for (;;)
-            {
-                if (ct.IsCancellationRequested)
-                    return;
-
-                using (await _connectionLock.LockAsync(ct))
-                {
-                    var connections = _connections.Values.ToArray();
-
-                    foreach (var conn in connections)
-                    {
-                        if (conn.IsZombie)
-                            _connections.Remove(conn.Guid);
-                        else if (conn.IsTimedout)
-                        {
-                            _loggingManager.LogInfoSync<Server>("Client timed out.", null, new
-                            {
-                                conn.IP
-                            });
-
-                            conn.ForceDisconnect();
-                        }
-                    }
-                }
-
-                await Task.Delay(1000, ct);
-            }
-        }
         
         /// <summary>
         ///     Initializes the websocket class
@@ -76,7 +42,6 @@ namespace Oldsu.Bancho
             _loggingManager = loggingManager;
             _hubEventLoop = hubEventLoop;
             
-            _connections = new Dictionary<Guid, Connection>();
             _connectionLock = new AsyncLock();
             
             // _userStateProvider = userDataProvider;
@@ -153,16 +118,12 @@ namespace Oldsu.Bancho
         private async void HandleDisconnection(object? sender, EventArgs eventArgs)
         {
             var conn = (Connection) sender!;
-            
-            using (await _connectionLock.LockAsync())
+        
+            await _loggingManager.LogInfo<Server>("Client disconnected.", null, new
             {
-                _connections.Remove(conn.Guid);
-
-                await _loggingManager.LogInfo<Server>("Client disconnected.", null, new
-                {
-                    conn.IP
-                });
-            }
+                conn.IP,
+                conn.Guid
+            });
         }
 
         private async void HandleUserDisconnection(Connection connection, User user)
@@ -179,16 +140,14 @@ namespace Oldsu.Bancho
         {
             using (await _connectionLock.LockAsync())
             {
-                var guid = Guid.NewGuid();
-
-                var connection = new Connection(guid, webSocketConnection);
-                _connections.Add(guid, connection);
+                var connection = new Connection(webSocketConnection);
                 
                 #region Logging
 
-                await _loggingManager.LogInfo<Server>("Client connected.", null, new
+                _loggingManager.LogInfoSync<Server>("Client connected.", null, new
                 {
-                    connection.IP
+                    connection.IP,
+                    connection.Guid
                 });
 
                 #endregion
@@ -196,15 +155,26 @@ namespace Oldsu.Bancho
                 connection.Disconnected += HandleDisconnection;
                 connection.OnString += HandleLogin;
                 connection.Ready += ConnectionReady;
+                connection.Timedout += ConnectionTimedout;
             }
         }
 
-        private async void ConnectionReady(object? sender, EventArgs args)
+        private void ConnectionTimedout(object? sender, EventArgs e)
+        {
+            Connection connection = (Connection) sender!;
+            
+            _loggingManager.LogInfoSync<Server>("Connection timed out.", dump: new
+            {
+                connection.IP,
+                connection.Guid
+            });
+        }
+
+        private void ConnectionReady(object? sender, EventArgs args)
         {
             Connection connection = (Connection) sender!;
             
             connection.SendPacket(SignaturePacket);
-
             connection.Ready -= ConnectionReady;
         }
         
@@ -216,13 +186,12 @@ namespace Oldsu.Bancho
             
             using (await _connectionLock.LockAsync())
             {
-                
                 if (connection.IsZombie)
                     return;
 
                 #region Logging
 
-                await _loggingManager.LogInfo<Server>("Authenticating client.", null, new
+                _loggingManager.LogInfoSync<Server>("Authenticating client.", null, new
                 {
                     connection.IP
                 });
@@ -237,9 +206,10 @@ namespace Oldsu.Bancho
                 {
                     #region Logging
 
-                    await _loggingManager.LogInfo<Server>("User authentication failed.", null, new
+                    _loggingManager.LogInfoSync<Server>("User authentication failed.", null, new
                     {
-                        connection.IP
+                        connection.IP,
+                        connection.Guid
                     });
 
                     #endregion
@@ -254,14 +224,15 @@ namespace Oldsu.Bancho
 
                 #region Logging
 
-                await _loggingManager.LogInfo<Server>("User authenticated.", null, new
+                _loggingManager.LogInfoSync<Server>("User authenticated.", null, new
                 {
                     userInfo!.Username,
                     userInfo.UserID,
                     userInfo.Privileges,
                     Version = version,
                     ShowCity = showCity,
-                    UtcOffset = utcOffset
+                    UtcOffset = utcOffset,
+                    ConnectionGuid = connection.Guid
                 });
 
                 #endregion
@@ -314,7 +285,7 @@ namespace Oldsu.Bancho
                 Console.WriteLine(e);
             }
             
-            await Task.WhenAny(_hubEventLoop.Run(), PingWatchdog(ct));
+            await Task.WhenAny(_hubEventLoop.Run());
         }
     }
 }
