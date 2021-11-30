@@ -61,25 +61,29 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
                         var gradeOsu =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash && score.Gamemode == 0)
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                                && score.UserId == context.User.UserID && score.Gamemode == 0)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
 
                         var gradeTaiko =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash && score.Gamemode == 1)
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                                && score.UserId == context.User.UserID && score.Gamemode == 1)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
 
                         var gradeCtb =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash && score.Gamemode == 2)
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                                && score.UserId == context.User.UserID && score.Gamemode == 2)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
 
                         var gradeMania =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash && score.Gamemode == 3)
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                                && score.UserId == context.User.UserID && score.Gamemode == 3)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
 
