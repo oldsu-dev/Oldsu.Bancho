@@ -20,6 +20,7 @@ namespace Oldsu.Bancho.GameLogic.Events
                     .Handle(new HubEventContext(context.Hub, context.HubEventLoop, oldUser));
             }
 
+            context.Hub.UserPanelManager.RegisterUser(context.User);
             
             foreach (var channel in context.Hub.AvailableChatChannels.Values)
             {
@@ -34,7 +35,6 @@ namespace Oldsu.Bancho.GameLogic.Events
                 }
             }
             
-            context.Hub.UserPanelManager.RegisterUser(context.User);
             context.HubEventLoop.SendEvent(new HubEventPacket(context.User, new UserStatsRequest()));
         }
     }
