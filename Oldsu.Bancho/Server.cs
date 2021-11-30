@@ -27,7 +27,7 @@ namespace Oldsu.Bancho
         private const string ServerVersion = "Alpha 0.1";
 
         private readonly Dictionary<Guid, Connection> _connections;
-        private AsyncLock _connectionLock;
+        private readonly AsyncLock _connectionLock;
 
         private readonly HubEventLoop _hubEventLoop;
         private readonly WebSocketServer _server;
@@ -41,13 +41,15 @@ namespace Oldsu.Bancho
                 if (ct.IsCancellationRequested)
                     return;
 
-                using (await _connectionLock.LockAsync())
+                using (await _connectionLock.LockAsync(ct))
                 {
-                    foreach (var conn in _connections.Values.Where(c => c.IsTimedout))
+                    var connections = _connections.Values.ToArray();
+
+                    foreach (var conn in connections)
                     {
                         if (conn.IsZombie)
                             _connections.Remove(conn.Guid);
-                        else
+                        else if (conn.IsTimedout)
                         {
                             _loggingManager.LogInfoSync<Server>("Client timed out.", null, new
                             {
