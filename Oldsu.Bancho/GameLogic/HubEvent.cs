@@ -5,7 +5,7 @@ using Oldsu.Bancho.Exceptions;
 
 namespace Oldsu.Bancho.GameLogic
 {
-    public class HubEventContext
+    public struct HubEventContext
     {
         public HubEventContext(Hub hub, HubEventLoop hubEventLoop, User user)
         {
