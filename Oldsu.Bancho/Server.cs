@@ -243,6 +243,7 @@ namespace Oldsu.Bancho
 
                 _loggingManager.LogInfoSync<Server>("User authenticated.", null, new
                 {
+                    result,
                     userInfo!.Username,
                     userInfo.UserID,
                     userInfo.Privileges,
