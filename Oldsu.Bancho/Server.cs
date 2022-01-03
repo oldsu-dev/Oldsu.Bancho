@@ -57,34 +57,36 @@ namespace Oldsu.Bancho
             _ => Version.NotApplicable,
         };
 
-        private async Task<(LoginResult, UserInfo?, Version, byte utcOffset, bool showCity)> Authenticate(string authString)
+        private async Task<(LoginResult, UserInfo?, Version, byte utcOffset, bool showCity, string[]? debugInfo)> Authenticate(string authString)
         {
-            var authFields = authString.Split().Select(s => s.Trim()).ToArray();
+            string[]? debugInfo = null;
+            var authFields = authString.Split('\n').Select(s => s.Trim()).ToArray();
 
             if (authFields.Length != 3)
-                return (LoginResult.TooOldVersion, null, Version.NotApplicable, 0, false);
+                return (LoginResult.TooOldVersion, null, Version.NotApplicable, 0, false, debugInfo);
 
             var (loginUsername, loginPassword, info) =
                 (authFields[0], authFields[1], authFields[2]);
 
+            debugInfo = new[] {loginUsername, info};
             var infoFields = info.Split("|");
             var version = GetProtocol(infoFields[0]);
 
             if (version == Version.NotApplicable)
-                return (LoginResult.TooOldVersion, null, version, 0, false);
+                return (LoginResult.TooOldVersion, null, version, 0, false, debugInfo);
 
             await using var db = new Database();
             var user = await db.AuthenticateAsync(loginUsername, loginPassword);
 
             if (user == null)
-                return (LoginResult.AuthenticationFailed, null, version, 0, false);
+                return (LoginResult.AuthenticationFailed, null, version, 0, false, debugInfo);
 
             if (user.Banned)
-                return (LoginResult.Banned, null, version, 0, false);
+                return (LoginResult.Banned, null, version, 0, false, debugInfo);
 
             // user is found, user is not banned, client is not too old. Everything is fine.
             return (LoginResult.AuthenticationSuccessful, user, version,
-                (byte)sbyte.Parse(infoFields[1]), infoFields[2] == "1");
+                (byte)sbyte.Parse(infoFields[1]), infoFields[2] == "1", debugInfo);
         }
 
         private async Task<Presence> GetPresenceAsync(UserInfo user, byte utcOffset, bool showCity, string ip)
@@ -193,7 +195,7 @@ namespace Oldsu.Bancho
 
                 connection.OnString -= HandleLogin;
 
-                (LoginResult, UserInfo?, Version, byte utcOffset, bool showCity) result;
+                (LoginResult, UserInfo?, Version, byte utcOffset, bool showCity, string[]? debugInfo) result;
                 
                 try
                 {
@@ -214,7 +216,7 @@ namespace Oldsu.Bancho
                     return;
                 }
 
-                var (loginResult, userInfo, version, utcOffset, showCity) = result;
+                var (loginResult, userInfo, version, utcOffset, showCity, _) = result;
                 
                 if (loginResult != LoginResult.AuthenticationSuccessful)
                 {
@@ -224,7 +226,7 @@ namespace Oldsu.Bancho
                     {
                         connection.IP,
                         connection.Guid,
-                        
+                        result
                     });
 
                     #endregion
