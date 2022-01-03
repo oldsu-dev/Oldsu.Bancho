@@ -59,39 +59,32 @@ namespace Oldsu.Bancho
 
         private async Task<(LoginResult, UserInfo?, Version, byte utcOffset, bool showCity)> Authenticate(string authString)
         {
-            try
-            {
-                var authFields = authString.Split().Select(s => s.Trim()).ToArray();
+            var authFields = authString.Split().Select(s => s.Trim()).ToArray();
 
-                if (authFields.Length != 3)
-                    return (LoginResult.TooOldVersion, null, Version.NotApplicable, 0, false);
-
-                var (loginUsername, loginPassword, info) =
-                    (authFields[0], authFields[1], authFields[2]);
-
-                var infoFields = info.Split("|");
-                var version = GetProtocol(infoFields[0]);
-
-                if (version == Version.NotApplicable)
-                    return (LoginResult.TooOldVersion, null, version, 0, false);
-
-                await using var db = new Database();
-                var user = await db.AuthenticateAsync(loginUsername, loginPassword);
-
-                if (user == null)
-                    return (LoginResult.AuthenticationFailed, null, version, 0, false);
-
-                if (user.Banned)
-                    return (LoginResult.Banned, null, version, 0, false);
-
-                // user is found, user is not banned, client is not too old. Everything is fine.
-                return (LoginResult.AuthenticationSuccessful, user, version,
-                    (byte)sbyte.Parse(infoFields[1]), infoFields[2] == "1");
-            }
-            catch
-            {
+            if (authFields.Length != 3)
                 return (LoginResult.TooOldVersion, null, Version.NotApplicable, 0, false);
-            }
+
+            var (loginUsername, loginPassword, info) =
+                (authFields[0], authFields[1], authFields[2]);
+
+            var infoFields = info.Split("|");
+            var version = GetProtocol(infoFields[0]);
+
+            if (version == Version.NotApplicable)
+                return (LoginResult.TooOldVersion, null, version, 0, false);
+
+            await using var db = new Database();
+            var user = await db.AuthenticateAsync(loginUsername, loginPassword);
+
+            if (user == null)
+                return (LoginResult.AuthenticationFailed, null, version, 0, false);
+
+            if (user.Banned)
+                return (LoginResult.Banned, null, version, 0, false);
+
+            // user is found, user is not banned, client is not too old. Everything is fine.
+            return (LoginResult.AuthenticationSuccessful, user, version,
+                (byte)sbyte.Parse(infoFields[1]), infoFields[2] == "1");
         }
 
         private async Task<Presence> GetPresenceAsync(UserInfo user, byte utcOffset, bool showCity, string ip)
@@ -200,8 +193,29 @@ namespace Oldsu.Bancho
 
                 connection.OnString -= HandleLogin;
 
-                var (loginResult, userInfo, version, utcOffset, showCity) = await Authenticate(authString);
+                (LoginResult, UserInfo?, Version, byte utcOffset, bool showCity) result;
+                
+                try
+                {
+                    result = await Authenticate(authString);
+                }
+                catch (Exception e)
+                {
+                    #region Logging
 
+                    _loggingManager.LogCriticalSync<Server>("Error while authentication a client.", e, new
+                    {
+                        connection.IP,
+                        connection.Guid
+                    });
+
+                    #endregion
+                    
+                    return;
+                }
+
+                var (loginResult, userInfo, version, utcOffset, showCity) = result;
+                
                 if (loginResult != LoginResult.AuthenticationSuccessful)
                 {
                     #region Logging
@@ -209,7 +223,8 @@ namespace Oldsu.Bancho
                     _loggingManager.LogInfoSync<Server>("User authentication failed.", null, new
                     {
                         connection.IP,
-                        connection.Guid
+                        connection.Guid,
+                        
                     });
 
                     #endregion
