@@ -1,4 +1,5 @@
-﻿using Oldsu.Bancho.Packet.Shared.In;
+﻿using System;
+using Oldsu.Bancho.Packet.Shared.In;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
@@ -29,7 +30,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                 {
                     UserID = (int)User!.UserID,
                     Username = User.Username,
-                    AvatarFilename = $"{User.UserID}.jpg",
+                    AvatarFilename = User.HasAvatar ? $"{User.UserID}.jpg" : string.Empty,
                     Timezone = Presence.UtcOffset,
                     Location = CountryNames.FromByte[Presence.Country],
                     RankedScore = (long)Stats.RankedScore,
@@ -59,7 +60,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                 {
                     UserID = (int)User!.UserID,
                     Username = User.Username,
-                    AvatarFilename = $"{User.UserID}.jpg",
+                    AvatarFilename = User.HasAvatar ? $"{User.UserID}.jpg" : string.Empty,
                     Timezone = Presence.UtcOffset,
                     Location = CountryNames.FromByte[Presence.Country] ,
                     RankedScore = 0,
