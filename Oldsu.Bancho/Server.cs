@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -53,7 +53,7 @@ namespace Oldsu.Bancho
         
         private static Version GetProtocol(string clientBuild) => clientBuild switch
         {
-            "2000" => Version.B904,
+            "2100" => Version.B904,
             _ => Version.NotApplicable,
         };
 
