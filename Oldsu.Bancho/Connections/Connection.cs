@@ -191,7 +191,7 @@ namespace Oldsu.Bancho.Connections
         private readonly AsyncLock _sendLock;
         private readonly AsyncLock _receiveLock;
 
-        public async void SendPacket(ISerializable packet) => await _enqueuePackets.Writer.WriteAsync(packet);
+        public void SendPacket(ISerializable packet) => _enqueuePackets.Writer.TryWrite(packet);
 
         public void Authenticate(Version version)
         {
