@@ -523,13 +523,7 @@ namespace Oldsu.Bancho
                 });
 
         private static readonly IReadOnlyDictionary<Type, ImmutableArray<TypeMember>> _members = 
-                Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes()
-                    .Where(t =>
-                    {
-                        var attribute = t.GetCustomAttribute<BanchoPacketAttribute>();
-                        return attribute is { };
-                    })
-                    .ToDictionary(t => t, GetTypeMembers);
+                Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes().ToDictionary(t => t, GetTypeMembers);
 
         private static readonly IReadOnlyDictionary<Type, BanchoPacketAttribute> _attributes = 
             Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes()
