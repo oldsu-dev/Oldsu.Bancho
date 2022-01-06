@@ -256,8 +256,6 @@ namespace Oldsu.Bancho.Connections
             {
                 await _enqueuePackets.Reader.Completion;
             }
-
-            await Task.Delay(500);
             
             RawConnection.Close();
             HandleDisconnection();
