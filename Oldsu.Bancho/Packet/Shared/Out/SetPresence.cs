@@ -37,7 +37,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                     TotalScore = (long)Stats.TotalScore,
                     Playcount = (int)Stats.Playcount,
                     Accuracy = Stats.Accuracy / 100f,
-                    Rank = 0,
+                    Rank = Stats.Rank,
                     Privileges = (byte)Presence.Privilege,
                     BStatusUpdate = new Packet.Out.B904.bStatusUpdate
                     {
