@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Fleck;
 using Nito.AsyncEx;
 using Oldsu.Bancho.Packet;
+using Oldsu.Bancho.Packet.Shared.Out;
 using Version = Oldsu.Enums.Version;
 
 namespace Oldsu.Bancho.Connections
@@ -209,7 +210,7 @@ namespace Oldsu.Bancho.Connections
             for (;;)
             {
                 ISerializable packet = await _enqueuePackets.Reader.ReadAsync(token);
-
+                
                 try
                 {
                     if (!RawConnection.IsAvailable)
@@ -248,12 +249,15 @@ namespace Oldsu.Bancho.Connections
                 return;
 
             _disconnectRequest = true;
+            await _enqueuePackets.Writer.WriteAsync(new Null());
             _enqueuePackets.Writer.Complete();
             
             if (!force)
             {
                 await _enqueuePackets.Reader.Completion;
             }
+
+            await Task.Delay(500);
             
             RawConnection.Close();
             HandleDisconnection();
