@@ -210,14 +210,19 @@ namespace Oldsu.Bancho.Connections
             {
                 if (_sendingCompleted)
                     return;
-
+                
                 try
                 {
-                    if (!RawConnection.IsAvailable)
-                        return;
+                    while (!RawConnection.IsAvailable)
+                    {
+                        if (_disconnectRequest)
+                            return;
+
+                        await Task.Delay(1);
+                    }
 
                     var data = packet.SerializeDataByVersion(this.Version);
-                    if (data == null || data.Value.Length == 0)
+                    if (data == null)
                         return;
 
                     await RawConnection.Send(data.Value);
