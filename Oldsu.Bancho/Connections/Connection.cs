@@ -40,7 +40,7 @@ namespace Oldsu.Bancho.Connections
     
     public class Connection : IAsyncDisposable
     {
-        protected IWebSocketConnection RawConnection { get; }
+        private IWebSocketConnection RawConnection { get; }
         
         public LockStateHolder LockStateHolder { get; private set; }
         public Version Version { get; private set; }
@@ -74,8 +74,8 @@ namespace Oldsu.Bancho.Connections
             Version = Version.NotApplicable;
             Guid = Guid.NewGuid();
 
-            _sendingCompletionSource = new TaskCompletionSource();
-            
+            _enqueuePackets = Channel.CreateUnbounded<ISerializable>();
+
             _sendLock = new AsyncLock();
             _receiveLock = new AsyncLock();
             
@@ -86,6 +86,8 @@ namespace Oldsu.Bancho.Connections
         {
             if (_disconnectRequest)
                 return;
+            
+            StartSendingPackets();
             
             Ready?.Invoke(this, EventArgs.Empty);
             
@@ -154,6 +156,7 @@ namespace Oldsu.Bancho.Connections
         }
 
         private CancellationTokenSource? _pingTaskCancellationSource;
+        private CancellationTokenSource? _packetSendTaskCancellationSource;
         
         private void ResetPing(int nextPeriod)  
         {
@@ -168,30 +171,27 @@ namespace Oldsu.Bancho.Connections
             });
         }
 
+        private void StartSendingPackets()
+        {
+            StopSendingPackets();
+            
+            _packetSendTaskCancellationSource = new CancellationTokenSource();
+            Task.Run(PacketSendTask);
+        }
+        
+        private void StopSendingPackets()
+        {
+            _packetSendTaskCancellationSource?.Cancel();
+            _packetSendTaskCancellationSource = null;
+        }
+
         private void CancelPing() =>
             _pingTaskCancellationSource?.Cancel();
         
         private readonly AsyncLock _sendLock;
         private readonly AsyncLock _receiveLock;
 
-        public async void SendPacket(ISerializable packet) => await InternalSendPacket(packet);
-        
-        private readonly TaskCompletionSource _sendingCompletionSource;
-
-        private void CheckCompletionState()
-        {
-            if (_sendingCompleted && _waitingPackets == 0)
-                _sendingCompletionSource.TrySetResult();
-        }
-
-        private volatile bool _sendingCompleted;
-        private volatile uint _waitingPackets;
-
-        private void CompleteSending()
-        {
-            _sendingCompleted = true;
-            CheckCompletionState();
-        }
+        public async void SendPacket(ISerializable packet) => await _enqueuePackets.Writer.WriteAsync(packet);
 
         public void Authenticate(Version version)
         {
@@ -199,17 +199,16 @@ namespace Oldsu.Bancho.Connections
             Version = version;
             ResetPing(AuthenticatedPingInterval);
         }
-        
-        public async Task InternalSendPacket(ISerializable packet)
-        {
-            await LockStateHolder.WaitStateLock();
-            
-            Interlocked.Increment(ref _waitingPackets);
 
-            using (await _sendLock.LockAsync())
+        private readonly Channel<ISerializable> _enqueuePackets;
+
+        private async Task PacketSendTask()
+        {
+            CancellationToken token = _packetSendTaskCancellationSource?.Token ?? default;
+            
+            for (;;)
             {
-                if (_sendingCompleted)
-                    return;
+                ISerializable packet = await _enqueuePackets.Reader.ReadAsync(token);
 
                 try
                 {
@@ -221,21 +220,16 @@ namespace Oldsu.Bancho.Connections
                         return;
 
                     Console.WriteLine(packet.ToString());
-                    
+
                     await RawConnection.Send(data.Value);
                 }
                 catch (ConnectionNotAvailableException exception)
                 {
                     Console.WriteLine(exception);
                 }
-                finally
-                {
-                    Interlocked.Decrement(ref _waitingPackets);
-                    CheckCompletionState();
-                }
             }
         }
-
+        
         private volatile bool _disconnectRequest;
 
         public async void ForceDisconnect()
@@ -254,24 +248,12 @@ namespace Oldsu.Bancho.Connections
                 return;
 
             _disconnectRequest = true;
-            
-            CompleteSending();
+            _enqueuePackets.Writer.Complete();
             
             if (!force)
             {
-                try
-                {
-                    await _sendingCompletionSource.Task;
-                }
-                catch (TaskCanceledException)
-                {
-                    return;
-                }
+                await _enqueuePackets.Reader.Completion;
             }
-            
-            _sendingCompletionSource.TrySetException(new TaskCanceledException());
-
-            await Task.Delay(500);
             
             RawConnection.Close();
             HandleDisconnection();
@@ -281,8 +263,10 @@ namespace Oldsu.Bancho.Connections
         {
             if (!_disconnectRequest)
                 _disconnectRequest = true;
-            
+         
             Disconnected?.Invoke(this, EventArgs.Empty);
+            
+            StopSendingPackets();
             CancelPing();
         }
 
