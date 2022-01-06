@@ -220,6 +220,8 @@ namespace Oldsu.Bancho.Connections
                     if (data == null || data.Value.Length == 0)
                         return;
 
+                    Console.WriteLine(packet.ToString());
+                    
                     await RawConnection.Send(data.Value);
                 }
                 catch (ConnectionNotAvailableException exception)
