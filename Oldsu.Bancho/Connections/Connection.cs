@@ -75,9 +75,8 @@ namespace Oldsu.Bancho.Connections
             Version = Version.NotApplicable;
             Guid = Guid.NewGuid();
 
-            _enqueuePackets = Channel.CreateUnbounded<ISerializable>();
+            _packetsQueue = Channel.CreateUnbounded<ISerializable>();
 
-            _sendLock = new AsyncLock();
             _receiveLock = new AsyncLock();
             
             LockStateHolder = new LockStateHolder();
@@ -177,7 +176,7 @@ namespace Oldsu.Bancho.Connections
             StopSendingPackets();
             
             _packetSendTaskCancellationSource = new CancellationTokenSource();
-            Task.Run(PacketSendTask);
+            _packetSendTask = Task.Run(PacketSendTask);
         }
         
         private void StopSendingPackets()
@@ -189,10 +188,9 @@ namespace Oldsu.Bancho.Connections
         private void CancelPing() =>
             _pingTaskCancellationSource?.Cancel();
         
-        private readonly AsyncLock _sendLock;
         private readonly AsyncLock _receiveLock;
 
-        public void SendPacket(ISerializable packet) => _enqueuePackets.Writer.TryWrite(packet);
+        public void SendPacket(ISerializable packet) => _packetsQueue.Writer.TryWrite(packet);
 
         public void Authenticate(Version version)
         {
@@ -201,34 +199,50 @@ namespace Oldsu.Bancho.Connections
             ResetPing(AuthenticatedPingInterval);
         }
 
-        private readonly Channel<ISerializable> _enqueuePackets;
+        private readonly Channel<ISerializable> _packetsQueue;
+        private Task? _packetSendTask;
 
+        private async Task SendRemainingPackets()
+        {
+            while (_packetsQueue.Reader.TryRead(out var packet))
+                await InternalSendPacket(packet);
+        }
+        
+        private async Task InternalSendPacket(ISerializable packet)
+        {
+            if (!RawConnection.IsAvailable)
+                return;
+
+            var data = packet.SerializeDataByVersion(this.Version);
+            if (data == null || data.Value.Length == 0)
+                return;
+            
+            await RawConnection.Send(data.Value);
+        }
+        
         private async Task PacketSendTask()
         {
             CancellationToken token = _packetSendTaskCancellationSource?.Token ?? default;
-            
-            for (;;)
+
+            try
             {
-                ISerializable packet = await _enqueuePackets.Reader.ReadAsync(token);
-                
-                try
+                for (;;)
                 {
-                    if (!RawConnection.IsAvailable)
-                        return;
+                    ISerializable packet = await _packetsQueue.Reader.ReadAsync(token);
 
-                    var data = packet.SerializeDataByVersion(this.Version);
-                    if (data == null || data.Value.Length == 0)
-                        return;
-
-                    Console.WriteLine(packet.ToString());
-
-                    await RawConnection.Send(data.Value);
-                }
-                catch (ConnectionNotAvailableException exception)
-                {
-                    Console.WriteLine(exception);
+                    try
+                    {
+                        await InternalSendPacket(packet);
+                    }
+                    catch (Exception exception)
+                    {
+                        Console.WriteLine(exception);
+                        await Disconnect(true);
+                        break;
+                    }
                 }
             }
+            catch (OperationCanceledException) { }
         }
         
         private volatile bool _disconnectRequest;
@@ -249,12 +263,12 @@ namespace Oldsu.Bancho.Connections
                 return;
 
             _disconnectRequest = true;
-            await _enqueuePackets.Writer.WriteAsync(new Null());
-            _enqueuePackets.Writer.Complete();
-            
+            _packetsQueue.Writer.Complete();
+            await (_packetSendTask ?? Task.CompletedTask);
+
             if (!force)
             {
-                await _enqueuePackets.Reader.Completion;
+                await SendRemainingPackets();
             }
             
             RawConnection.Close();
