@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Enums;
@@ -18,14 +19,21 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
             Task.Run(async () =>
             {
-                await using var database = new Database();
-                
-                var stats = await database.GetStatsWithRankAsync(
-                    context.User.UserID, gamemode, context.User.CancellationToken);
-                
-                context.HubEventLoop.SendEvent(new HubEventAction(context.User,
-                    context => context.Hub.UserPanelManager.UpdateStats(context.User, stats))
-                );
+                try
+                {
+                    await using var database = new Database();
+
+                    var stats = await database.GetStatsWithRankAsync(
+                        context.User.UserID, gamemode, context.User.CancellationToken);
+
+                    context.HubEventLoop.SendEvent(new HubEventAction(context.User,
+                        context => context.Hub.UserPanelManager.UpdateStats(context.User, stats))
+                    );
+                }
+                catch (Exception exception)
+                {
+                    context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User));
+                }
             });
         }
     }

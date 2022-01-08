@@ -1,7 +1,9 @@
+using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.GameLogic;
+using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.In
@@ -18,13 +20,20 @@ namespace Oldsu.Bancho.Packet.Shared.In
             {
                 Task.Run(async () =>
                 {
-                    await using var database = new Database();
+                    try
+                    {
+                        await using var database = new Database();
 
-                    await database.Friends.AddAsync(
-                        new Friendship {UserID = _userId, FriendUserID = _userId},
-                        context.User.CancellationToken);
+                        await database.Friends.AddAsync(
+                            new Friendship {UserID = _userId, FriendUserID = _userId},
+                            context.User.CancellationToken);
 
-                    await database.SaveChangesAsync(context.User.CancellationToken);
+                        await database.SaveChangesAsync(context.User.CancellationToken);
+                    }
+                    catch (Exception exception)
+                    {
+                        context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User));
+                    }
                 });
             }
         }

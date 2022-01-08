@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Exceptions.PacketHandling;
 using Oldsu.Bancho.GameLogic;
+using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Bancho.Objects;
 using Oldsu.Bancho.Packet.Shared.Out;
 using Oldsu.Enums;
@@ -106,9 +107,9 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     
                     context.User.SendPacket(new BeatmapInfoReply{BeatmapInfos = beatmapInfos});
                 }
-                catch (Exception e)
+                catch (Exception exception)
                 {
-                    Debug.WriteLine(e);
+                    context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User));
                 }
             });
         }
