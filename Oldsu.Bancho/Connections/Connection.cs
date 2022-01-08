@@ -167,7 +167,7 @@ namespace Oldsu.Bancho.Connections
             {
                 await Task.Delay(nextPeriod, _pingTaskCancellationSource.Token);
                 Timedout?.Invoke(this, EventArgs.Empty);
-                await Disconnect(true);
+                HandleDisconnection();
             });
         }
 
@@ -282,7 +282,6 @@ namespace Oldsu.Bancho.Connections
                     }
                 }
 
-                RawConnection.Close();
                 HandleDisconnection();
             }
             catch (Exception e)
@@ -293,6 +292,8 @@ namespace Oldsu.Bancho.Connections
 
         private void HandleDisconnection()
         {
+            RawConnection.Close();
+            
             if (!_disconnectRequest)
                 _disconnectRequest = true;
          
