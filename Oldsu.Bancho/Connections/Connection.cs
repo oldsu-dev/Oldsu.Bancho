@@ -264,7 +264,14 @@ namespace Oldsu.Bancho.Connections
 
             if (!force)
             {
-                await SendRemainingPackets();
+                try
+                {
+                    await SendRemainingPackets();
+                }
+                catch
+                {
+                    // ignored
+                }
             }
             
             RawConnection.Close();
