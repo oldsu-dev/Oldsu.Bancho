@@ -224,25 +224,21 @@ namespace Oldsu.Bancho.Connections
         {
             CancellationToken token = _packetSendTaskCancellationSource?.Token ?? default;
 
-            try
+            for (;;)
             {
-                for (;;)
-                {
-                    ISerializable packet = await _packetsQueue.Reader.ReadAsync(token);
+                ISerializable packet = await _packetsQueue.Reader.ReadAsync(token);
 
-                    try
-                    {
-                        await InternalSendPacket(packet);
-                    }
-                    catch (Exception exception)
-                    {
-                        Console.WriteLine(exception);
-                        await Disconnect(true);
-                        break;
-                    }
+                try
+                {
+                    await InternalSendPacket(packet);
+                }
+                catch (Exception exception)
+                {
+                    Console.WriteLine(exception);
+                    await Disconnect(true);
+                    break;
                 }
             }
-            catch (OperationCanceledException) { }
         }
         
         private volatile bool _disconnectRequest;
@@ -265,8 +261,16 @@ namespace Oldsu.Bancho.Connections
             _disconnectRequest = true;
             
             _packetsQueue.Writer.Complete();
-            _packetSendTaskCancellationSource?.Cancel();
-            await (_packetSendTask ?? Task.CompletedTask);
+            StopSendingPackets();
+            
+            try
+            {
+                await (_packetSendTask ?? Task.CompletedTask);
+            }
+            catch
+            {
+                // ignored
+            }
 
             if (!force)
             {
@@ -284,7 +288,6 @@ namespace Oldsu.Bancho.Connections
          
             Disconnected?.Invoke(this, EventArgs.Empty);
             
-            StopSendingPackets();
             CancelPing();
         }
 
