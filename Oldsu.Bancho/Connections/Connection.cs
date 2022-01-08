@@ -252,36 +252,43 @@ namespace Oldsu.Bancho.Connections
         /// </summary>
         public async Task Disconnect(bool force)
         {
-            await LockStateHolder.WaitStateLock();
-
-            if (_disconnectRequest)
-                return;
-
-            _disconnectRequest = true;
-
             try
             {
-                _packetsQueue.Writer.Complete();
-            }
-            catch
-            {
-                // ignored
-            }
+                await LockStateHolder.WaitStateLock();
 
-            if (!force)
-            {
+                if (_disconnectRequest)
+                    return;
+
+                _disconnectRequest = true;
+
                 try
                 {
-                    await SendRemainingPackets();
+                    _packetsQueue.Writer.Complete();
                 }
                 catch
                 {
                     // ignored
                 }
+
+                if (!force)
+                {
+                    try
+                    {
+                        await SendRemainingPackets();
+                    }
+                    catch
+                    {
+                        // ignored
+                    }
+                }
+
+                RawConnection.Close();
+                HandleDisconnection();
             }
-            
-            RawConnection.Close();
-            HandleDisconnection();
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            } 
         }
 
         private void HandleDisconnection()
