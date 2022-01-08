@@ -176,7 +176,7 @@ namespace Oldsu.Bancho.Connections
             StopSendingPackets();
             
             _packetSendTaskCancellationSource = new CancellationTokenSource();
-            _packetSendTask = Task.Run(PacketSendTask);
+            Task.Run(PacketSendTask);
         }
         
         private void StopSendingPackets()
@@ -200,7 +200,6 @@ namespace Oldsu.Bancho.Connections
         }
 
         private readonly Channel<ISerializable> _packetsQueue;
-        private Task? _packetSendTask;
 
         private async Task SendRemainingPackets()
         {
@@ -227,7 +226,7 @@ namespace Oldsu.Bancho.Connections
             for (;;)
             {
                 ISerializable packet = await _packetsQueue.Reader.ReadAsync(token);
-
+                
                 try
                 {
                     await InternalSendPacket(packet);
@@ -262,15 +261,6 @@ namespace Oldsu.Bancho.Connections
             
             _packetsQueue.Writer.Complete();
             StopSendingPackets();
-            
-            try
-            {
-                await (_packetSendTask ?? Task.CompletedTask);
-            }
-            catch
-            {
-                // ignored
-            }
 
             if (!force)
             {
