@@ -263,7 +263,9 @@ namespace Oldsu.Bancho.Connections
                 return;
 
             _disconnectRequest = true;
+            
             _packetsQueue.Writer.Complete();
+            _packetSendTaskCancellationSource?.Cancel();
             await (_packetSendTask ?? Task.CompletedTask);
 
             if (!force)
