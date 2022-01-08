@@ -258,9 +258,15 @@ namespace Oldsu.Bancho.Connections
                 return;
 
             _disconnectRequest = true;
-            
-            _packetsQueue.Writer.Complete();
-            StopSendingPackets();
+
+            try
+            {
+                _packetsQueue.Writer.Complete();
+            }
+            catch
+            {
+                // ignored
+            }
 
             if (!force)
             {
@@ -285,6 +291,7 @@ namespace Oldsu.Bancho.Connections
          
             Disconnected?.Invoke(this, EventArgs.Empty);
             
+            StopSendingPackets();
             CancelPing();
         }
 
