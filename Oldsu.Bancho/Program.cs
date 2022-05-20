@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Net;
 using Oldsu;
 using Oldsu.Bancho;
 using Oldsu.Bancho.GameLogic;
@@ -28,7 +29,9 @@ await using (var database = new Database()) {
             channel.AutoJoin));
 }
 
-var server = new Server("ws://0.0.0.0:13381/", new HubEventLoop(hub, loggingManager), loggingManager);
+var server = new Server(IPAddress.Any, 13381, new HubEventLoop(hub, loggingManager), loggingManager);
+
+Console.WriteLine("Server running");
 
 await server.Run();
 
