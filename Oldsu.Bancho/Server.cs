@@ -52,7 +52,7 @@ namespace Oldsu.Bancho
         
         private static Version GetProtocol(string clientBuild) => clientBuild switch
         {
-            "2110" => Version.B904,
+            "2110" or "2100" or "2000" => Version.B904,
             _ => Version.NotApplicable,
         };
 
