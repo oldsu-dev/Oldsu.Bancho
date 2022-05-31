@@ -23,14 +23,14 @@ namespace Oldsu.Bancho
         public string Username => UserInfo.Username;
         public uint UserID => UserInfo.UserID;
         
-        private readonly Connection _connection;
+        private readonly BanchoConnection _connection;
         
         public User(
             UserInfo userInfo,
             Presence presence,
             Activity activity,
             StatsWithRank? stats,
-            Connection connection)
+            BanchoConnection connection)
         {
             UserInfo = userInfo;
             Presence = presence;
@@ -64,10 +64,9 @@ namespace Oldsu.Bancho
             _cancellationTokenSource.Cancel();
         }
 
-        public void SendPacket(ISerializable packet) => _connection.SendPacket(packet);
-        public bool IsZombie => _connection.IsZombie;
+        public void SendPacket(ISerializable packet) => _ = _connection.SendPacketAsync(packet);
+        public bool IsZombie => _connection.Zombie;
 
-        public void StopReceiving() => _connection.StopReceiving();
-        public Task Disconnect(bool force = false) => _connection.Disconnect(force);
+        public Task Disconnect(bool force = false) => _connection.DisconnectAsync(force);
     }
 }

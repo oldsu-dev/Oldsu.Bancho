@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Data.Common;
 using System.Linq;
@@ -19,22 +20,25 @@ namespace Oldsu.Bancho.Packet.Shared.In {
         {
             Task.Run(async () =>
             {
-                await using var database = new Database();
-
-                var friendship = await database.Friends
-                    .Where(friendship => friendship.FriendUserID == _userId
-                                         && friendship.UserID == context.User.UserID)
-                    .FirstOrDefaultAsync();
-
-                if (friendship != null)
+                try
                 {
-                    database.Friends.Remove(friendship);
-                    await database.SaveChangesAsync();
+                    await using var database = new Database();
+
+                    var friendship = await database.Friends
+                        .Where(friendship => friendship.FriendUserID == _userId
+                                             && friendship.UserID == context.User.UserID)
+                        .FirstOrDefaultAsync();
+
+                    if (friendship != null)
+                    {
+                        database.Friends.Remove(friendship);
+                        await database.SaveChangesAsync();
+                    }
                 }
-            }).ContinueWith(task =>
-            {
-                if (task.IsFaulted)
-                    context.HubEventLoop.SendEvent(new HubEventDisconnect(context.User));
+                catch (Exception exception)
+                {
+                    context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User));
+                }
             });
         }
     }

@@ -92,6 +92,8 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
 
                     host.Match = match;
                     _matches[i] = match;
+                    
+                    BroadcastToLobby(new MatchUpdate{Match = match});
 
                     #region Logging
 

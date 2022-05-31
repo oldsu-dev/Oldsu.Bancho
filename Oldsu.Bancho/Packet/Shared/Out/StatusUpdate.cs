@@ -1,4 +1,5 @@
-﻿using Oldsu.Bancho.Enums;
+﻿using System;
+using Oldsu.Bancho.Enums;
 using Oldsu.Types;
 
 namespace Oldsu.Bancho.Packet.Shared.Out
@@ -199,14 +200,14 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                     {
                         UserID = (int)User.UserID,
                         Username = User.Username,
-                        AvatarFilename = $"{User.UserID}.jpg",
+                        AvatarFilename = User.HasAvatar ? $"{User.UserID}.png" : string.Empty,
                         Timezone = Presence.UtcOffset,
                         Location = CountryNames.FromByte[Presence.Country],
                         RankedScore = (long)Stats.RankedScore,
                         TotalScore = (long)Stats.TotalScore,
                         Playcount = (int)Stats.Playcount,
                         Accuracy = Stats.Accuracy / 100f,
-                        Rank = 0,
+                        Rank = Stats.Rank,
                         Privileges = (byte)Presence.Privilege,
                         BStatusUpdate = new Packet.Out.B904.bStatusUpdate
                         {
@@ -229,7 +230,7 @@ namespace Oldsu.Bancho.Packet.Shared.Out
                     {
                         UserID = (int)User.UserID,
                         Username = User.Username,
-                        AvatarFilename = $"{User.UserID}.jpg",
+                        AvatarFilename = User.HasAvatar ? $"{User.UserID}.png" : string.Empty,
                         Timezone = Presence.UtcOffset,
                         Location = CountryNames.FromByte[Presence.Country],
                         RankedScore = 0,

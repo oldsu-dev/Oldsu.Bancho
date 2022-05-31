@@ -35,7 +35,8 @@ namespace Oldsu.Bancho.GameLogic.Events
                 }
             }
             
-            context.HubEventLoop.SendEvent(new HubEventPacket(context.User, new UserStatsRequest()));
+            new HubEventSendFriends(context.User).Handle(context);
+            new HubEventPacket(context.User, new UserStatsRequest()).Handle(context);
         }
     }
 }

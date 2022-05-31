@@ -1,6 +1,6 @@
 [submodule "oldsu"]
 	path = oldsu
 	url = https://gitlab.ayyeve.xyz/oldsu/oldsu
-[submodule "fleck"]
-	path = fleck
-	url = https://gitlab.ayyeve.xyz/oldsu/fleck.git
+[submodule "Doron"]
+	path = Doron
+	url = https://github.com/jiniux/Doron.git

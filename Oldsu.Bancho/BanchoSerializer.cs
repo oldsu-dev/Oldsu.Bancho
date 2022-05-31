@@ -509,7 +509,6 @@ namespace Oldsu.Bancho
             return type;
         }
 
-
         private static readonly IReadOnlyDictionary<(ushort, Version), Type> _inPackets =
             Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes()
                 .Where(t =>
@@ -523,8 +522,17 @@ namespace Oldsu.Bancho
                     return (attribute.Id, attribute.Version);
                 });
 
-        private static readonly ConcurrentDictionary<Type, BanchoPacketAttribute> _packetAttributeCache = new();
-        private static readonly ConcurrentDictionary<Type, ImmutableArray<TypeMember>> _memberCache = new();
+        private static readonly IReadOnlyDictionary<Type, ImmutableArray<TypeMember>> _members = 
+                Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes().ToDictionary(t => t, GetTypeMembers);
+
+        private static readonly IReadOnlyDictionary<Type, BanchoPacketAttribute> _attributes = 
+            Assembly.GetAssembly(typeof(BanchoSerializer))!.GetTypes()
+                .Where(t =>
+                {
+                    var attribute = t.GetCustomAttribute<BanchoPacketAttribute>();
+                    return attribute is { };
+                })
+                .ToDictionary(t => t, t => t.GetCustomAttribute<BanchoPacketAttribute>()!);
 
         private static IEnumerable<MemberInfo> GetAllMemberInfo(Type type) => type.GetMembers();
 
@@ -577,22 +585,6 @@ namespace Oldsu.Bancho
             return members;
         }
 
-        private static ImmutableArray<TypeMember> GetOrAddCachedMembers(Type type) => 
-            _memberCache.GetOrAdd(type, GetTypeMembers);
-
-        private static BanchoPacketAttribute GetOrAddCachedPacketAttributes(Type type)
-        {
-            return _packetAttributeCache.GetOrAdd(type, (t) =>
-            {
-                var attrib = t.GetCustomAttribute<BanchoPacketAttribute>();
-
-                if (attrib == null)
-                    throw new ArgumentException("Missing BanchoPacketAttribute.");
-                
-                return attrib;
-            });
-        }
-        
         private static (ushort id, int length) ReadPacketHeader(BinaryReader br)
         {
             var id = br.ReadUInt16();
@@ -605,7 +597,7 @@ namespace Oldsu.Bancho
         private static void Write(object instance, BinaryWriter bw)
         {
             var type = instance.GetType();
-            var members = GetOrAddCachedMembers(type);
+            var members = _members[type];
 
             foreach (var member in members)
             {
@@ -626,7 +618,7 @@ namespace Oldsu.Bancho
 
         private static object Read(BinaryReader br, Type type)
         {
-            var members = GetOrAddCachedMembers(type);
+            var members = _members[type];
             var instance = Activator.CreateInstance(type)!;
 
             foreach (var member in members)
@@ -677,7 +669,9 @@ namespace Oldsu.Bancho
             using var bw = new BinaryWriter(ms, Encoding.UTF8, leaveOpen: true);
             Type type = instance.GetType();
 
-            var attrib = GetOrAddCachedPacketAttributes(type);
+            BanchoPacketAttribute? attrib;
+            if (!_attributes.TryGetValue(type, out attrib))
+                throw new Exception("Missing packet attribute.");
 
             bw.Write(attrib.Id);
             bw.Write((byte)0x0);
