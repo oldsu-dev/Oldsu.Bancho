@@ -10,7 +10,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public void Handle(HubEventContext context)
         {
-            context.HubEventLoop.SendEvent(new HubEventDisconnect(context.User));
+            context.HubEventLoop.SendEvent(new HubEventDisconnect(context.User!));
         }
     }
 }

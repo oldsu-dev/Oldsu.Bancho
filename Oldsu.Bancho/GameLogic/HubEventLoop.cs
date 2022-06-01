@@ -36,7 +36,7 @@ namespace Oldsu.Bancho.GameLogic
 
                 try
                 {
-                    if ((hubEvent.Invoker.Errored || hubEvent.Invoker.CancellationToken.IsCancellationRequested)
+                    if ((hubEvent.Invoker != null && (hubEvent.Invoker.Errored || hubEvent.Invoker.CancellationToken.IsCancellationRequested))
                         && hubEvent is not HubEventDisconnect)
                         continue;
 
@@ -51,14 +51,16 @@ namespace Oldsu.Bancho.GameLogic
                     _loggingManager.LogCriticalSync<HubEventLoop>(
                         "An exception occurred while processing an event.",
                         exception,
-                        new {hubEvent.Invoker.UserID});
+                        new { hubEvent.Invoker?.UserID });
 
                     #endregion
-
-
-                    // Disconnect and make messages unprocessable
-                    hubEvent.Invoker.Errored = true;
-                    SendEvent(new HubEventDisconnect(hubEvent.Invoker));
+                    
+                    if (hubEvent.Invoker != null)
+                    {
+                        // Disconnect and make messages unprocessable
+                        hubEvent.Invoker.Errored = true;
+                        SendEvent(new HubEventDisconnect(hubEvent.Invoker));
+                    }
 
                     Debug.WriteLine(exception);
                 }

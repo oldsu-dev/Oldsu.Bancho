@@ -9,10 +9,8 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public void Handle(HubEventContext context)
         {
-            if (context.User.Match == null)
-                throw new UserNotInMatchException();
-            
-            context.User.Match.Leave(context.User);
+            if (context.User!.Match != null)
+                context.User.Match.Leave(context.User);
         }
     }
 }

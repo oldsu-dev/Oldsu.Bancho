@@ -12,6 +12,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="GenHTTP.Core" Version="6.3.4" />
+    <PackageReference Include="GenHTTP.Modules.Webservices" Version="6.3.4" />
     <PackageReference Include="MaxMind.Db" Version="3.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
   </ItemGroup>

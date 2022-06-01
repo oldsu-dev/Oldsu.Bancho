@@ -16,7 +16,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                 return;
             
             if (context.Hub.AvailableChatChannels.TryGetValue(ChannelName, out var channel))
-                channel.Leave(context.User);
+                channel.Leave(context.User!);
             else
                 throw new InvalidChannelException();
         }

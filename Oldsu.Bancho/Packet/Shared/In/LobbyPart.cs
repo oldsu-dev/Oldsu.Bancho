@@ -9,6 +9,6 @@ namespace Oldsu.Bancho.Packet.Shared.In
     public class LobbyPart : ISharedPacketIn
     {
         public void Handle(HubEventContext context) =>
-            context.Hub.Lobby.Leave(context.User);
+            context.Hub.Lobby.Leave(context.User!);
     }
 }

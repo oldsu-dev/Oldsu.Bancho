@@ -15,7 +15,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
         
         private Match?[] _matches { get; }
 
-        private IEnumerable<Match> AvailableMatches
+        public IEnumerable<Match> AvailableMatches
         {
             get
             {

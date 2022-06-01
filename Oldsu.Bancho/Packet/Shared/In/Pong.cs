@@ -9,7 +9,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public void Handle(HubEventContext context)
         {
-            context.User.SendPacket(new Ping());
+            context.User!.SendPacket(new Ping());
         }
     }
 }

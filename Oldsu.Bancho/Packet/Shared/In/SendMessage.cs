@@ -19,12 +19,12 @@ namespace Oldsu.Bancho.Packet.Shared.In
                 throw new NullStringReceivedException();
             
             if (Target.StartsWith('#') && context.Hub.AvailableChatChannels.TryGetValue(Target, out var channel))
-                channel.SendMessage(context.User, Contents);
+                channel.SendMessage(context.User!, Contents);
             else if (Target == "#lobby")
-                context.Hub.Lobby.SendMessage(context.User, Contents);
+                context.Hub.Lobby.SendMessage(context.User!, Contents);
             else if (Target == "#multiplayer")
             {
-                if (context.User.Match == null)
+                if (context.User!.Match == null)
                     throw new UserNotInMatchException();
                 
                 context.User.Match.SendMessage(context.User, Contents);

@@ -20,6 +20,8 @@ namespace Oldsu.Bancho.GameLogic
         public UserPanelManagerEntity? SpectatingEntity { get; set; }
         public IEnumerable<UserPanelManagerEntity> Spectators => _spectators.Values;
 
+        public bool MutedInChat { get; set; } = false;
+        
         public UserPanelManagerEntity(User user)
         {
             User = user;

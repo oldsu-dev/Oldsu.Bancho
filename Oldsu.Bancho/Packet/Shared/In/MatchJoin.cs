@@ -13,7 +13,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public void Handle(HubEventContext context)
         {
-            if (context.User.Match != null)
+            if (context.User!.Match != null)
                 throw new UserAlreadyInMatchException();
 
             context.Hub.Lobby.GetMatchByID(MatchID).TryJoin(context.User, GamePassword);

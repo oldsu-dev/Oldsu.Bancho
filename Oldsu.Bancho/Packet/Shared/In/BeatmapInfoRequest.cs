@@ -52,7 +52,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     var query = await database.Beatmaps.Include(b => b.Beatmapset)
                         .Select(beatmap => new {beatmap.Beatmapset.RankingStatus, beatmap.Filename, beatmap.BeatmapID, beatmap.BeatmapsetID, beatmap.BeatmapHash})
                         .Where(beatmap => Filenames.Contains(beatmap.Filename))
-                        .ToArrayAsync(context.User.CancellationToken);
+                        .ToArrayAsync(context.User!.CancellationToken);
 
                     BeatmapInfo[] beatmapInfos = new BeatmapInfo[query.Length]; // Four modes for each beatmap
                     

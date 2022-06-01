@@ -12,7 +12,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public void Handle(HubEventContext context)
         {
-            context.Hub.UserPanelManager.EntitiesByUserID[context.User.UserID]
+            context.Hub.UserPanelManager.EntitiesByUserID[context.User!.UserID]
                 .BroadcastToSpectators(new Out.FrameBundle{Frames = Frames});
         }
     }

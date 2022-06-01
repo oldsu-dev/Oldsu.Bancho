@@ -32,7 +32,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     }
                     catch (Exception exception)
                     {
-                        context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User));
+                        context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User!));
                     }
                 });
             }

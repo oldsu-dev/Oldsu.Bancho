@@ -10,6 +10,6 @@ namespace Oldsu.Bancho.Packet.Shared.In
         public int UserID { get; set; }
 
         public void Handle(HubEventContext context) =>
-            context.Hub.UserPanelManager.StartSpectating(context.User, (uint)UserID);
+            context.Hub.UserPanelManager.StartSpectating(context.User!, (uint)UserID);
     }
 }

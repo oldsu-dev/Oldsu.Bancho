@@ -14,7 +14,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public void Handle(HubEventContext context)
         {
-            var gamemode = context.User.Activity is ActivityWithBeatmap activityWithBeatmap
+            var gamemode = context.User!.Activity is ActivityWithBeatmap activityWithBeatmap
                 ? activityWithBeatmap.GameMode : (byte)Mode.Standard;
 
             Task.Run(async () =>

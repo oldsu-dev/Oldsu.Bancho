@@ -7,6 +7,7 @@ using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.GameLogic.Multiplayer;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Enums;
 using Oldsu.Types;
 using Channel = System.Threading.Channels.Channel;
 
