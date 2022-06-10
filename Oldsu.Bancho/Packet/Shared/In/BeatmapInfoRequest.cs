@@ -90,7 +90,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
                         beatmapInfos[i] = new BeatmapInfo
                         {
-                            Ranked = beatmap.RankingStatus == 1,
+                            Ranked = beatmap.RankingStatus == RankingStatus.Ranked,
                             GradeOsu = (byte) gradeOsu,
                             GradeCatch = (byte) gradeCtb,
                             GradeTaiko = (byte) gradeTaiko,
