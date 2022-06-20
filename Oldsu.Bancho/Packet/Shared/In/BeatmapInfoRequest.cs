@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Exceptions.PacketHandling;
+using Oldsu.Bancho.Exceptions.UserRequest;
 using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Bancho.Objects;
@@ -42,7 +43,10 @@ namespace Oldsu.Bancho.Packet.Shared.In
         {
             if (Filenames.Length > 100)
                 throw new RequestTooBigException();
-            
+
+            if (context.User!.KVStore.ContainsKey("beatmap_info_request_lock"))
+                throw new BeatmapInfoAlreadyRequestedException();
+
             Task.Run(async () =>
             {
                 await using var database = new Database();
@@ -50,40 +54,44 @@ namespace Oldsu.Bancho.Packet.Shared.In
                 try
                 {
                     var query = await database.Beatmaps.Include(b => b.Beatmapset)
-                        .Select(beatmap => new {beatmap.Beatmapset.RankingStatus, beatmap.Filename, beatmap.BeatmapID, beatmap.BeatmapsetID, beatmap.BeatmapHash})
+                        .Select(beatmap => new
+                        {
+                            beatmap.Beatmapset.RankingStatus, beatmap.Filename, beatmap.BeatmapID, beatmap.BeatmapsetID,
+                            beatmap.BeatmapHash
+                        })
                         .Where(beatmap => Filenames.Contains(beatmap.Filename))
                         .ToArrayAsync(context.User!.CancellationToken);
 
                     BeatmapInfo[] beatmapInfos = new BeatmapInfo[query.Length]; // Four modes for each beatmap
-                    
+
                     for (int i = 0; i < query.Length; i++)
                     {
                         var beatmap = query[i];
 
                         var gradeOsu =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash
                                                 && score.UserId == context.User.UserID && score.Gamemode == 0)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
 
                         var gradeTaiko =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash
                                                 && score.UserId == context.User.UserID && score.Gamemode == 1)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
 
                         var gradeCtb =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash
                                                 && score.UserId == context.User.UserID && score.Gamemode == 2)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
 
                         var gradeMania =
                             RankingFromString(await database.HighScoresWithRank
-                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash 
+                                .Where(score => score.BeatmapHash == beatmap.BeatmapHash
                                                 && score.UserId == context.User.UserID && score.Gamemode == 3)
                                 .Select(score => score.Grade)
                                 .FirstOrDefaultAsync(context.User.CancellationToken));
@@ -102,10 +110,19 @@ namespace Oldsu.Bancho.Packet.Shared.In
                             ThreadID = -1
                         };
                     }
-                    
+
                     context.User.CancellationToken.ThrowIfCancellationRequested();
+
+                    // Remove lock
+                    HubEventAwaitableAction action = new HubEventAwaitableAction(
+                        _ => context.User.KVStore.Remove("beatmap_info_request_lock"),
+                        context.User
+                    );
                     
-                    context.User.SendPacket(new BeatmapInfoReply{BeatmapInfos = beatmapInfos});
+                    context.HubEventLoop.SendEvent(action);
+                    await action.Task;
+                    
+                    context.User.SendPacket(new BeatmapInfoReply {BeatmapInfos = beatmapInfos});
                 }
                 catch (Exception exception)
                 {

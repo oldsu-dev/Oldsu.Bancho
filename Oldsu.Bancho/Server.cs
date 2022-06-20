@@ -11,6 +11,7 @@ using Doron.Extensions;
 using Newtonsoft.Json.Serialization;
 using Nito.AsyncEx;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Extensions;
 using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Bancho.Packet;
@@ -123,7 +124,7 @@ namespace Oldsu.Bancho
             {
                 _loggingManager.LogInfoSync<Server>("Connection timed out.", dump: new
                 {
-                    connection.WebSocketConnection.RawConnection.RemoteIPAddress,
+                    connection.IPAddress,
                     connection.WebSocketConnection.RawConnection.Guid
                 });
             }
@@ -131,16 +132,16 @@ namespace Oldsu.Bancho
             {
                 _loggingManager.LogInfoSync<Server>("Exception was thrown when receiving packets.", exception, dump: new
                 {
-                    connection.WebSocketConnection.RawConnection.RemoteIPAddress,
+                    connection.IPAddress,
                     connection.WebSocketConnection.RawConnection.Guid
                 });
             }
-            
+
             _hubEventLoop.SendEvent(new HubEventDisconnect(user));
 
             await _loggingManager.LogInfo<Server>("Client disconnected.", null, new
             {
-                connection.WebSocketConnection.RawConnection.RemoteIPAddress,
+                connection.IPAddress,
                 connection.WebSocketConnection.RawConnection.Guid
             });
         }
@@ -160,7 +161,7 @@ namespace Oldsu.Bancho
                     #region Logging
 
                     _loggingManager.LogInfoSync<Server>("not-Ok status when trying to receive authentication packet",
-                        null, new { status = receiveResult.Status, exception = receiveResult.Exception });
+                        null, new { status = receiveResult.Status, IPAddress = connection.GetRealIPAddress(), exception = receiveResult.Exception });
 
                     #endregion
                     
@@ -187,7 +188,7 @@ namespace Oldsu.Bancho
 
                     _loggingManager.LogCriticalSync<Server>("Error while authentication a client.", e, new
                     {
-                        connection.RawConnection.RemoteIPAddress,
+                        IPAddress = connection.GetRealIPAddress(),
                         connection.RawConnection.Guid
                     });
 
@@ -206,7 +207,7 @@ namespace Oldsu.Bancho
 
                     _loggingManager.LogInfoSync<Server>("User authentication failed.", null, new
                     {
-                        connection.RawConnection.RemoteIPAddress,
+                        IPAddress = connection.GetRealIPAddress(),
                         connection.RawConnection.Guid
                     });
 
@@ -243,7 +244,7 @@ namespace Oldsu.Bancho
                 await banchoConnection.SendPacketAsync(new BanchoPrivileges {Privileges = userInfo.Privileges});
 
                 _hubEventLoop.SendEvent(new HubEventConnect(user));
-                
+
                 await HandlePacketStream(user, banchoConnection);
             }
         }

@@ -39,11 +39,17 @@ namespace Oldsu.Bancho
             Stats = stats;
             
             _connection = connection;
+            
             _cancellationTokenSource = new CancellationTokenSource();
-            JoinedChannels = new HashSet<string>(); 
+            
+            JoinedChannels = new HashSet<string>();
+            KVStore = new Dictionary<string, object>();
         }
 
+        public Dictionary<string, object> KVStore { get; set; }
+
         private readonly CancellationTokenSource _cancellationTokenSource;
+        
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         
         public HashSet<string> JoinedChannels { get; }
