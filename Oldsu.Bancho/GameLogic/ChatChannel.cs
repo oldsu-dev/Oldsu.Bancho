@@ -59,20 +59,6 @@ namespace Oldsu.Bancho.GameLogic
             user.SendPacket(new ChannelJoined{ChannelName = Tag});
             user.JoinedChannels.Add(Tag);
 
-            ChatMessage[] messages = MessageHistory.Objects.ToArray();
-
-            if (messages.Length != 0)
-            {
-                user.SendPacket(new SendMessage
-                {
-                    Contents = $"Here the last {messages.Length} in case you missed them", Sender = "System", Target = Tag
-                });
-
-                foreach (var message in MessageHistory.Objects)
-                    user.SendPacket(new SendMessage
-                        {Contents = message.Content, Sender = message.Sender, Target = message.Tag});
-            }
-
             #region Logging
             
             _loggingManager.LogInfoSync<ChatChannel>("User joined a chat channel.", dump: new

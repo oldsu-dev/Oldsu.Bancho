@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Doron;
 using Doron.Connections;
 using Nito.AsyncEx;
+using Oldsu.Bancho.Extensions;
 using Oldsu.Bancho.Packet;
 using Version = Oldsu.Enums.Version;
 
@@ -18,7 +19,9 @@ public class BanchoConnection
     public Version Version { set; get; }
 
     private AsyncLock _sendLock;
-    
+
+    public string IPAddress => WebSocketConnection.GetRealIPAddress();
+
     public BanchoConnection(WebSocketConnection connection, Version version)
     {
         _sendLock = new AsyncLock();

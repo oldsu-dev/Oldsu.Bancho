@@ -57,7 +57,7 @@ public class WebInterface
     {
         return WrapIntoResponse(async () =>
         {
-            var ev = new HubEventAsyncRequest<object>((hub) =>
+            var ev = new HubEventAwaitableAction<object>((hub) =>
             {
                 var data = hub.Lobby.AvailableMatches.Select(b => new
                 {
@@ -83,7 +83,7 @@ public class WebInterface
     {
         return WrapIntoResponse(async () =>
         {
-            var ev = new HubEventAsyncRequest<object>((hub) =>
+            var ev = new HubEventAwaitableAction<object>((hub) =>
             {
                 var data = hub.Lobby.GetMatchByID(id).MatchSlots.Select(b => new
                 {
@@ -110,7 +110,7 @@ public class WebInterface
     {
         return WrapIntoResponse(async () =>
         {
-            var ev = new HubEventAsyncRequest<object>((hub) =>
+            var ev = new HubEventAwaitableAction<object>((hub) =>
             {
                 Match match = hub.Lobby.GetMatchByID(id);
                 match.Start();
@@ -128,7 +128,7 @@ public class WebInterface
     {
         return WrapIntoResponse(async () =>
         {
-            var ev = new HubEventAsyncRequest<object>((hub) =>
+            var ev = new HubEventAwaitableAction<object>((hub) =>
             {
                 Match match = hub.Lobby.GetMatchByID(id);
                 match.LockSlot(slotId);
@@ -148,7 +148,7 @@ public class WebInterface
     {
         return WrapIntoResponse(async () =>
         {
-            var ev = new HubEventAsyncRequest<object>((hub) =>
+            var ev = new HubEventAwaitableAction<object>((hub) =>
             {
                 var data = hub.UserPanelManager.Entities.Select(
                     b => new { b.User.Username, Activity = (object)b.User.Activity, b.User.UserID, b.User.Presence }).ToArray();
@@ -166,7 +166,7 @@ public class WebInterface
     {
         return WrapIntoResponse(async () =>
         {
-            HubEventAsyncRequest<bool> ev = new HubEventAsyncRequest<bool>((hub) =>
+            HubEventAwaitableAction<bool> ev = new HubEventAwaitableAction<bool>((hub) =>
             {
                 hub.UserPanelManager.EntitiesByUsername[request.Username].User.Disconnect();
                 return true;
@@ -186,7 +186,7 @@ public class WebInterface
             if (request.Message == null)
                 throw new NullReferenceException();
             
-            HubEventAsyncRequest<bool> ev = new HubEventAsyncRequest<bool>((hub) =>
+            HubEventAwaitableAction<bool> ev = new HubEventAwaitableAction<bool>((hub) =>
             {
                 hub.AvailableChatChannels["#" + tag].SendMessage("System", request.Message);
                 return true;
@@ -203,7 +203,7 @@ public class WebInterface
     {
         return WrapIntoResponse(async () =>
         {
-            HubEventAsyncRequest<object> ev = new HubEventAsyncRequest<object>(
+            HubEventAwaitableAction<object> ev = new HubEventAwaitableAction<object>(
                 (hub) => hub.AvailableChatChannels["#" + tag].MessageHistory.Objects.ToArray());
 
             _hubEventLoop.SendEvent(ev);
