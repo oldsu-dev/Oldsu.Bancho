@@ -150,7 +150,14 @@ namespace Oldsu.Bancho
         {
             using (connection)
             {
+                _loggingManager.LogInfoSync<Server>("Client connected.", dump: new
+                {
+                    IPAddress = connection.GetRealIPAddress(),
+                    connection.RawConnection.Guid
+                });
+                
                 BanchoConnection banchoConnection = new BanchoConnection(connection, Version.NotApplicable);
+                
                 await banchoConnection.SendPacketAsync(SignaturePacket);
 
                 WebSocketConnection.WebSocketActionResult<WebSocketMessage> receiveResult =
