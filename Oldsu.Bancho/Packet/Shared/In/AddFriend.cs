@@ -25,7 +25,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                         await using var database = new Database();
 
                         await database.Friends.AddAsync(
-                            new Friendship {UserID = _userId, FriendUserID = _userId},
+                            new Friendship {UserID = context.User!.UserID, FriendUserID = _userId},
                             context.User.CancellationToken);
 
                         await database.SaveChangesAsync(context.User.CancellationToken);
