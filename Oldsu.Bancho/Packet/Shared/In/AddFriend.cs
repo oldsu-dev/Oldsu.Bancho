@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Exceptions.PacketHandling;
 using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Types;
@@ -16,6 +17,9 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public void Handle(HubEventContext context)
         {
+            if (_userId == context.User!.UserID)
+                throw new SelfFriendAttemptException();
+            
             if (context.Hub.UserPanelManager.IsOnline(_userId))
             {
                 Task.Run(async () =>
