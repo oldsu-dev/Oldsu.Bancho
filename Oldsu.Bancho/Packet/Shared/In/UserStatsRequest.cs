@@ -30,7 +30,16 @@ namespace Oldsu.Bancho.Packet.Shared.In
                         context.User.UserID, gamemode, context.User.CancellationToken);
 
                     uint[] ids = context.Hub.UserPanelManager.Entities
-                        .Where(u => (byte)u.User.Stats.Mode == gamemode && u.User.UserID != context.User.UserID)
+                        .Where(u =>
+                        {
+                            if (u.User.UserID != context.User.UserID)
+                                return false;
+                            
+                            if (u.User.Stats == null)
+                                return false;
+                            
+                            return (byte) u.User.Stats.Mode == gamemode;
+                        })
                         .Select(u => u.User.UserID)
                         .ToArray();
 
