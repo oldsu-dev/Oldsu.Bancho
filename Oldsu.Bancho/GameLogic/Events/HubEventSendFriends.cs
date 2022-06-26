@@ -19,6 +19,7 @@ public class HubEventSendFriends : HubEvent
         {
             await using var db = new Database();
             List<Friendship> friendships = await db.Friends.Where(f => f.UserID == context.User.UserID)
+                .OrderBy(b => b.FriendUserID)
                 .ToListAsync(context.User!.CancellationToken);
             
             context.User.SendPacket(new BanchoFriendsList{Friendships = friendships});
