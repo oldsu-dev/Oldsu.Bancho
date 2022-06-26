@@ -28,10 +28,14 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     try
                     {
                         await using var database = new Database();
-                        
-                        if (await database.Friends.AnyAsync(f => f.UserID == context.User.UserID && f.FriendUserID == _userId))
-                            return;
 
+                        if (await database.Friends.AnyAsync(
+                                f => f.UserID == context.User.UserID && f.FriendUserID == _userId,
+                                context.User.CancellationToken))
+                        {
+                            return;
+                        }
+                            
                         await database.Friends.AddAsync(
                             new Friendship {UserID = context.User!.UserID, FriendUserID = _userId},
                             context.User.CancellationToken);
