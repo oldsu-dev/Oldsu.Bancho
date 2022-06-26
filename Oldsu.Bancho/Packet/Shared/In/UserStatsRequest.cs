@@ -43,8 +43,9 @@ namespace Oldsu.Bancho.Packet.Shared.In
                         .Select(u => u.User.UserID)
                         .ToArray();
 
-                    var ranks = await database.StatsWithRank.Select(stats => new {stats.UserID, stats.Rank})
-                        .Where(stats => ids.Contains(stats.UserID)).ToArrayAsync();
+                    var ranks = await database.StatsWithRank
+                        .Where(stats => (byte)stats.Mode == gamemode && ids.Contains(stats.UserID)).Select(stats => new {stats.UserID, stats.Rank})
+                        .ToArrayAsync();
                     
                     context.HubEventLoop.SendEvent(new HubEventAction(context.User,
                         context =>
