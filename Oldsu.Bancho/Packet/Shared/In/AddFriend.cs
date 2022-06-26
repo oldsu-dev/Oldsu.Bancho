@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
@@ -27,6 +28,9 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     try
                     {
                         await using var database = new Database();
+                        
+                        if (await database.Friends.AnyAsync(f => f.UserID == context.User.UserID && f.FriendUserID == _userId))
+                            return;
 
                         await database.Friends.AddAsync(
                             new Friendship {UserID = context.User!.UserID, FriendUserID = _userId},
