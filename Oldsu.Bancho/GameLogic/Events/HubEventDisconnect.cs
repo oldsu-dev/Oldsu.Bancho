@@ -8,7 +8,7 @@ namespace Oldsu.Bancho.GameLogic.Events
 
         public override void Handle(HubEventContext context)
         {
-            if (!context.User.CancellationToken.IsCancellationRequested)
+            if (!context.User!.CancellationToken.IsCancellationRequested)
             {
                 context.User.CancelRelatedTasks();
                 

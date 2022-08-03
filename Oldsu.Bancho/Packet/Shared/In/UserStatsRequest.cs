@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
 using Oldsu.Bancho.Enums;
 using Oldsu.Bancho.GameLogic;
@@ -14,7 +17,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
     {
         public void Handle(HubEventContext context)
         {
-            var gamemode = context.User.Activity is ActivityWithBeatmap activityWithBeatmap
+            var gamemode = context.User!.Activity is ActivityWithBeatmap activityWithBeatmap
                 ? activityWithBeatmap.GameMode : (byte)Mode.Standard;
 
             Task.Run(async () =>
@@ -26,8 +29,32 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     var stats = await database.GetStatsWithRankAsync(
                         context.User.UserID, gamemode, context.User.CancellationToken);
 
+                    uint[] ids = context.Hub.UserPanelManager.Entities
+                        .Where(u =>
+                        {
+                            if (u.User.UserID != context.User.UserID)
+                                return false;
+                            
+                            if (u.User.Stats == null)
+                                return false;
+                            
+                            return (byte) u.User.Stats.Mode == gamemode;
+                        })
+                        .Select(u => u.User.UserID)
+                        .ToArray();
+
+                    var ranks = await database.StatsWithRank
+                        .Where(stats => (byte)stats.Mode == gamemode && ids.Contains(stats.UserID)).Select(stats => new {stats.UserID, stats.Rank})
+                        .ToArrayAsync();
+                    
                     context.HubEventLoop.SendEvent(new HubEventAction(context.User,
-                        context => context.Hub.UserPanelManager.UpdateStats(context.User, stats))
+                        context =>
+                        {
+                            context.Hub.UserPanelManager.UpdateStats(context.User!, stats!);
+                            
+                            foreach (var rank in ranks)
+                                context.Hub.UserPanelManager.UpdateRank(rank.UserID, rank.Rank);
+                        })
                     );
                 }
                 catch (Exception exception)

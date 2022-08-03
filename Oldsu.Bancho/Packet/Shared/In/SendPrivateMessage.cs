@@ -15,7 +15,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
                 throw new NullStringReceivedException();            
             
             if (context.Hub.UserPanelManager.EntitiesByUsername.TryGetValue(Target, out var entity))
-                entity.User.SendPrivateMessage(context.User, Contents);
+                entity.User.SendPrivateMessage(context.User!, Contents);
             else
                 throw new InvalidChannelException();
         }

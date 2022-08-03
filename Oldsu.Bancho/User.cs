@@ -7,6 +7,7 @@ using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.GameLogic.Multiplayer;
 using Oldsu.Bancho.Packet;
 using Oldsu.Bancho.Packet.Shared.Out;
+using Oldsu.Enums;
 using Oldsu.Types;
 using Channel = System.Threading.Channels.Channel;
 
@@ -38,11 +39,17 @@ namespace Oldsu.Bancho
             Stats = stats;
             
             _connection = connection;
+            
             _cancellationTokenSource = new CancellationTokenSource();
-            JoinedChannels = new HashSet<string>(); 
+            
+            JoinedChannels = new HashSet<string>();
+            KVStore = new Dictionary<string, object>();
         }
 
+        public Dictionary<string, object> KVStore { get; set; }
+
         private readonly CancellationTokenSource _cancellationTokenSource;
+        
         public CancellationToken CancellationToken => _cancellationTokenSource.Token;
         
         public HashSet<string> JoinedChannels { get; }

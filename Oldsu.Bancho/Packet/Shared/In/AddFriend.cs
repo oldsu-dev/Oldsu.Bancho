@@ -1,7 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Oldsu.Bancho.Connections;
+using Oldsu.Bancho.Exceptions.PacketHandling;
 using Oldsu.Bancho.GameLogic;
 using Oldsu.Bancho.GameLogic.Events;
 using Oldsu.Types;
@@ -16,6 +18,9 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public void Handle(HubEventContext context)
         {
+            if (_userId == context.User!.UserID)
+                throw new SelfFriendAttemptException();
+            
             if (context.Hub.UserPanelManager.IsOnline(_userId))
             {
                 Task.Run(async () =>
@@ -24,15 +29,22 @@ namespace Oldsu.Bancho.Packet.Shared.In
                     {
                         await using var database = new Database();
 
+                        if (await database.Friends.AnyAsync(
+                                f => f.UserID == context.User.UserID && f.FriendUserID == _userId,
+                                context.User.CancellationToken))
+                        {
+                            return;
+                        }
+                            
                         await database.Friends.AddAsync(
-                            new Friendship {UserID = _userId, FriendUserID = _userId},
+                            new Friendship {UserID = context.User!.UserID, FriendUserID = _userId},
                             context.User.CancellationToken);
 
                         await database.SaveChangesAsync(context.User.CancellationToken);
                     }
                     catch (Exception exception)
                     {
-                        context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User));
+                        context.HubEventLoop.SendEvent(new HubEventAsyncError(exception, context.User!));
                     }
                 });
             }

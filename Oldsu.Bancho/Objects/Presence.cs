@@ -4,12 +4,12 @@ namespace Oldsu.Bancho
 {
     public class Presence
     {
-        public Privileges Privilege;
+        public Privileges Privilege { get; set; }
         
-        public byte UtcOffset;
-        public byte Country; // find out is this byte or string
+        public byte UtcOffset { get; set; }
+        public byte Country { get; set; }
         
-        public float Longitude;
-        public float Latitude;
+        public float Longitude { get; set; }
+        public float Latitude { get; set; }
     }
 }

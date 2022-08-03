@@ -12,7 +12,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
         public void Handle(HubEventContext context)
         {
-            context.Hub.UserPanelManager.UpdateActivity(context.User, Activity);
+            context.Hub.UserPanelManager.UpdateActivity(context.User!, Activity);
         }
     }
 }

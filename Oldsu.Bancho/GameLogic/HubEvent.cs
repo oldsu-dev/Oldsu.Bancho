@@ -7,14 +7,14 @@ namespace Oldsu.Bancho.GameLogic
 {
     public struct HubEventContext
     {
-        public HubEventContext(Hub hub, HubEventLoop hubEventLoop, User user)
+        public HubEventContext(Hub hub, HubEventLoop hubEventLoop, User? user)
         {
             Hub = hub;
             User = user;
             HubEventLoop = hubEventLoop;
         }
         
-        public User User { get; }
+        public User? User { get; }
         public Hub Hub { get; }
         public HubEventLoop HubEventLoop { get; }
     }
@@ -23,7 +23,7 @@ namespace Oldsu.Bancho.GameLogic
     {
         public event Action? OnCompletion;
         
-        public HubEvent(User invoker)
+        public HubEvent(User? invoker)
         {
             Invoker = invoker;
         }
@@ -33,7 +33,7 @@ namespace Oldsu.Bancho.GameLogic
             OnCompletion?.Invoke();
         }
         
-        public User Invoker { get; }
+        public User? Invoker { get; }
         
         public abstract void Handle(HubEventContext context);
     }

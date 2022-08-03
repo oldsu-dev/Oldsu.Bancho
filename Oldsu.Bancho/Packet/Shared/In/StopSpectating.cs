@@ -8,6 +8,6 @@ namespace Oldsu.Bancho.Packet.Shared.In
     public class StopSpectating : ISharedPacketIn
     {
         public void Handle(HubEventContext context) =>
-            context.Hub.UserPanelManager.StopSpectating(context.User);
+            context.Hub.UserPanelManager.StopSpectating(context.User!);
     }
 }

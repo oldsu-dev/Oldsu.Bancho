@@ -84,10 +84,6 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             
             for (int i = 0; i < MaxSlots; i++)
                 MatchSlots[i].User?.SendPacket(cachedPacket);
-            
-            #region Logging
-
-            #endregion
         }
         
         private void BroadcastToPlayersBut(SharedPacketOut packet, Predicate<MatchSlot> predicate)
@@ -171,8 +167,6 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
                 user.SendPacket(new MatchJoinFail());
                 return;
             }
-
-            NotifyUpdate();
             
             MatchSlots[newSlotIndex].SetUser(user);
             user.Match = this;
@@ -187,6 +181,8 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
                 dump: new { user.UserID, MatchID });
 
             #endregion
+            
+            NotifyUpdate();
         }
 
         public void AssertHost(User user)
@@ -246,11 +242,9 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
                 new SendMessage{Contents = contents, Sender = sender.Username, Target = "#multiplayer"}, 
                 slot => slot.UserID == sender.UserID);
         }
-        
-        public void Start(User invoker)
-        {
-            AssertHost(invoker);
 
+        public void Start()
+        {
             if (InProgress)
                 throw new UserPlayingException();
             
@@ -258,7 +252,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
 
             Array.ForEach(MatchSlots, slot =>
             {
-                if (slot.SlotStatus == SlotStatus.Ready)
+                if (slot.SlotStatus == SlotStatus.Ready || slot.UserID == HostID)
                     slot.SlotStatus = SlotStatus.Playing;
             });
             
@@ -266,12 +260,19 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
 
             _loggingManager.LogInfoSync<Match>(
                 "Match started",
-                dump: new { invoker.UserID });
+                dump: new { HostID });
             
             #endregion
             
             NotifyUpdate();
             BroadcastToPlayersBut(new MatchStart{Match = this}, slot => slot.SlotStatus != SlotStatus.Playing);
+        }
+        
+        public void Start(User invoker)
+        {
+            AssertHost(invoker);
+
+            Start();
         }
         
         public void MoveSlot(User invoker, uint newSlotId)
@@ -313,7 +314,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
 
             if (invoker.UserID == HostID)
             {
-                var newHost = Array.FindIndex(MatchSlots, s => s.UserID != -1);
+                var newHost = Array.FindIndex(MatchSlots, s => s.UserID != -1 && s.UserID != HostID);
                 if (newHost == -1)
                 {
                     OnDisband?.Invoke(this);
@@ -328,7 +329,7 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
                     HostID = MatchSlots[newHost].UserID;
                 }
             }
-
+            
             invoker.SendPacket(new ChannelLeft{ChannelName = "#multiplayer"});
             invoker.Match = null;
             
@@ -340,8 +341,10 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             
             #endregion
 
+            invoker.SendPacket(new MatchUpdate{Match = this});
             
             NotifyUpdate();
+            
         }
 
         public void NoBeatmap(User invoker)
@@ -403,32 +406,38 @@ namespace Oldsu.Bancho.GameLogic.Multiplayer
             NotifyUpdate();
         }
 
-        public void LockSlot(User invoker, uint lockedSlot)
+        public void LockSlot(uint lockedSlot)
         {
-            AssertHost(invoker);
-            
             if (lockedSlot >= 8)
                 throw new InvalidSlotIDException();
             
-            if (GetSlotIndexByPlayer(invoker) == lockedSlot)
-                return;
-
             var slot = MatchSlots[lockedSlot];
 
             if (slot.User != null)
-                Leave(slot.User, updateSlot: false);
+                Leave(slot.User, updateSlot: true);
             
             #region Logging
             
             _loggingManager.LogInfoSync<Match>(
                 "Slot locked",
-                dump: new { invoker.UserID, SlotIndex = lockedSlot });
+                dump: new { HostID, SlotIndex = lockedSlot });
             
             #endregion
             
             slot.ToggleLock();
             
             NotifyUpdate();
+        }
+
+        
+        public void LockSlot(User invoker, uint lockedSlot)
+        {
+            AssertHost(invoker);
+            
+            if (GetSlotIndexByPlayer(invoker) == lockedSlot)
+                return;
+
+            LockSlot(lockedSlot);
         }
         
         public void TransferHost(User invoker, uint newHostSlot)

@@ -1,5 +1,8 @@
 ﻿using System;
 using System.Net;
+using GenHTTP.Engine;
+using GenHTTP.Modules.Layouting;
+using GenHTTP.Modules.Webservices;
 using Oldsu;
 using Oldsu.Bancho;
 using Oldsu.Bancho.GameLogic;
@@ -7,12 +10,13 @@ using Oldsu.Bancho.GameLogic.Multiplayer;
 using Oldsu.Enums;
 using Oldsu.Logging;
 using Oldsu.Logging.Strategies;
+using Server = Oldsu.Bancho.Server;
 
 #if DEBUG
-var loggingManager = new LoggingManager(new NoLog());
+var loggingManager = new LoggingManager(new Oldsu.Logging.Strategies.Console());
 #else
-var loggingManager = new LoggingManager(new MongoDbWriter(
-    Environment.GetEnvironmentVariable("OLDSU_MONGO_DB_CONNECTION_STRING")!));
+var loggingManager = new LoggingManager(new Combined(new Oldsu.Logging.Strategies.Console(), new MongoDbWriter(
+    Environment.GetEnvironmentVariable("OLDSU_MONGO_DB_CONNECTION_STRING")!)));
 #endif
 
 
@@ -29,9 +33,17 @@ await using (var database = new Database()) {
             channel.AutoJoin));
 }
 
-var server = new Server(IPAddress.Any, 13381, new HubEventLoop(hub, loggingManager), loggingManager);
+HubEventLoop hubEventLoop = new HubEventLoop(hub, loggingManager);
 
-Console.WriteLine("Server running");
+var server = new Server(IPAddress.Any, 13381, hubEventLoop, loggingManager);
 
-await server.Run();
+System.Console.WriteLine("Server running");
 
+var service = Layout.Create()
+    .AddService("api", new WebInterface(hubEventLoop));
+
+_ = server.Run();
+
+Host.Create()
+    .Handler(service)
+    .Run();

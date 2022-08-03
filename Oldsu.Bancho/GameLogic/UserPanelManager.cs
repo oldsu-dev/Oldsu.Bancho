@@ -20,6 +20,8 @@ namespace Oldsu.Bancho.GameLogic
         public UserPanelManagerEntity? SpectatingEntity { get; set; }
         public IEnumerable<UserPanelManagerEntity> Spectators => _spectators.Values;
 
+        public bool MutedInChat { get; set; } = false;
+        
         public UserPanelManagerEntity(User user)
         {
             User = user;
@@ -193,6 +195,25 @@ namespace Oldsu.Bancho.GameLogic
             BroadcastStatusUpdate(StatusUpdate.FromUserData(user, Completeness.Online));
         }
         
+        public void UpdateRank(uint userId, uint rank)
+        {
+            User user = EntitiesByUserID[userId].User;
+            user.Stats!.Rank = rank;
+            
+            #region Logging
+            
+            _loggingManager.LogInfoSync<UserPanelManager>(
+                "Rank updated", dump: new
+                {
+                    userId,
+                    rank
+                });
+
+            #endregion
+            
+            BroadcastStatusUpdate(StatusUpdate.FromUserData(user, Completeness.Online));
+        }
+        
         public void UpdateStats(User user, StatsWithRank stats)
         {
             user.Stats = stats;
@@ -205,7 +226,7 @@ namespace Oldsu.Bancho.GameLogic
                     user.UserID,
                     user.Stats
                 });
-                
+
             #endregion
             
             BroadcastStatusUpdate(StatusUpdate.FromUserData(user, Completeness.Online));

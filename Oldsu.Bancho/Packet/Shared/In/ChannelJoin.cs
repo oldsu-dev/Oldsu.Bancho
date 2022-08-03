@@ -19,7 +19,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
 
             if (ChannelName == "#multiplayer")
             { 
-                if (context.User.Match == null)
+                if (context.User!.Match == null)
                     throw new UserNotInMatchException();
                 
                 context.User.SendPacket(new ChannelJoined {ChannelName = "#multiplayer"});
@@ -27,7 +27,7 @@ namespace Oldsu.Bancho.Packet.Shared.In
             }
 
             if (context.Hub.AvailableChatChannels.TryGetValue(ChannelName, out var channel))
-                channel.Join(context.User);
+                channel.Join(context.User!);
             else
                 throw new InvalidChannelException();
         }
