@@ -1,6 +1,6 @@
 [submodule "oldsu"]
 	path = oldsu
-	url = https://github.com/oldsu-dev/Oldsu.Bancho
+	url = https://github.com/oldsu-dev/Oldsu
 [submodule "Doron"]
 	path = Doron
 	url = https://github.com/jiniux/Doron.git
